@@ -1,0 +1,45 @@
+<div class="aquarium-container">
+  <header class="app-header">
+    <h1>🐠 AquaSphere</h1>
+  </header>
+
+  <main class="aquarium-main">
+    <div class="aquarium-tank">
+      <canvas #aquariumCanvas width="800" height="600"></canvas>
+      <div class="aquarium-glass"></div>
+      <div class="aquarium-frame"></div>
+      
+      <!-- CSS Bubble-Animationen -->
+      <div class="water-effects">
+        <div class="bubble bubble-1"></div>
+        <div class="bubble bubble-2"></div>
+        <div class="bubble bubble-3"></div>
+        <div class="bubble bubble-4"></div>
+        <div class="bubble bubble-5"></div>
+        <div class="bubble bubble-6"></div>
+      </div>
+      
+      <!-- Lichtstrahl-Effekte -->
+      <div class="light-rays">
+        <div class="ray ray-1"></div>
+        <div class="ray ray-2"></div>
+        <div class="ray ray-3"></div>
+      </div>
+    </div>
+    
+    <div class="aquarium-controls">
+      <button class="control-btn feed-btn" (click)="feedFish()">
+        🐟 Füttern
+      </button>
+      <button class="control-btn light-btn" (click)="toggleLight()">
+        💡 Licht
+      </button>
+      <button class="control-btn clean-btn" (click)="cleanAquarium()">
+        🧽 Reinigen
+      </button>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+  </footer>
+</div>
