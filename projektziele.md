@@ -78,3 +78,6 @@ Ziel ist es, eine skalierbare und erweiterbare Plattform zu schaffen, die in Zuk
 **Interaktionsbuttons:** Klar platzierte Buttons für Füttern, Hinzufügen von Fischen oder Start des Gestaltungsmodus.
 
 **Design-Fokus:** Ruhige Farbtöne (Blautöne, weiche Animationen) für eine entspannende, meditative Atmosphäre.
+
+---
+**Navigation:** [🏠 README](./README.md) | ⬅️ [Ausgangssituation](./Ausgangsituation.md) | ➡️ [Rahmenbedingungen](./rahmenbedingungen.md)

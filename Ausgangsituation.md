@@ -11,3 +11,6 @@ Eine digitale Lösung, die dieses Erlebnis simuliert, gibt es nur in komplexen S
 Die Web-App AquaSphere bietet ein virtuelles Aquarium, das direkt im Browser läuft und über jedes Gerät erreichbar ist. Nutzer können ihr eigenes Becken einrichten, verschiedene Fischarten auswählen, dekorative Elemente platzieren und die Fische interaktiv füttern.
 
 Mit einer benutzerfreundlichen Oberfläche und lebendigen Animationen schafft AquaSphere ein entspannendes, kreatives Erlebnis – ganz ohne Wasserwechsel, Kosten oder technischen Aufwand.
+
+---
+**Navigation:** [🏠 README](./README.md) | ⬅️ README | ➡️ [Projektziele](./projektziele.md)

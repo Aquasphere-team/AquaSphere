@@ -63,3 +63,6 @@
 **Entwicklungskosten:** Die Umsetzung flüssiger Animationen, Serverinfrastruktur und optionaler Community-Features erfordert Zeit und finanzielle Ressourcen.
 
 **Unklare Monetarisierung:** Ein rein werbefreies Premium-Modell könnte nicht genügend Einnahmen generieren, wenn die Zielgruppe begrenzt bleibt.
+
+---
+**Navigation:** [🏠 README](./README.md) | ⬅️ [Rahmenbedingungen](./rahmenbedingungen.md) | ➡️ [Projektplan](./projektplan.md)

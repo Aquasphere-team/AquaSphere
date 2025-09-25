@@ -47,3 +47,6 @@
 **Kostenmodell:** Für den Betrieb (Hosting, Updates) ist ein tragfähiges Geschäftsmodell notwendig – z. B. werbefreie Premium-Version, In-App-Käufe (neue Fische/Objekte) oder freiwillige Spenden.
 
 **Finanzielle Ressourcen:** Für hochwertige Animationen, Sounddesign und regelmäßige Erweiterungen fallen Entwicklungs- und Wartungskosten an.
+
+---
+**Navigation:** [🏠 README](./README.md) | ⬅️ [Projektziele](./projektziele.md) | ➡️ [Chancen & Risiken](./chancen-risiken.md)

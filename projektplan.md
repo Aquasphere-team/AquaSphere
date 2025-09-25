@@ -139,3 +139,6 @@
 - **Conversion-Rate:** Premium-Feature-Nutzung
 - **Performance:** Ladezeiten, FPS, Crash-Rate
 - **User Satisfaction:** App-Store-Bewertungen, NPS-Score
+
+---
+**Navigation:** [🏠 README](./README.md) | ⬅️ [Chancen & Risiken](./chancen-risiken.md) | ➡️ [Product Backlog](./backlog.md)

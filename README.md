@@ -13,6 +13,9 @@ Eine Progressive Web App, die ein personalisierbares virtuelles Aquarium zur Ent
 - **[📊 Projektplan](./projektplan.md)** - Detaillierter Umsetzungsplan
 - **[📝 Product Backlog](./backlog.md)** - 25 User Stories für die Entwicklung
 
+---
+**Navigation:** 🏠 README | ➡️ [Ausgangssituation](./Ausgangsituation.md)
+
 ## 🚀 Technologie-Stack
 
 - **Frontend:** Angular, HTML5 Canvas, TypeScript
