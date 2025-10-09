@@ -4,7 +4,7 @@
 
 | ID | Prio | Epic | User Story | COS (Criteria of Satisfaction) | Effort | Time | Status |
 |---|---|---|---|---|---|---|---|
-| AQU1 | 1 | Aquarium-Ansicht | Als Nutzer möchte ich ein virtuelles Aquarium sehen. | Ein animiertes Aquarium wird in der App angezeigt mit Wasser-Effekten. | 5 |  | Not Started |
+| AQU1 | 1 | Aquarium-Ansicht | Als Nutzer möchte ich ein virtuelles Aquarium sehen. | Ein animiertes Aquarium wird in der App angezeigt mit Wasser-Effekten. | 5 | 25.09.2025 | Done |
 | AQU2 | 2 | Fische | Als Nutzer möchte ich Fische in meinem Aquarium schwimmen sehen. | Fische müssen sich realistisch bewegen und animiert sein. | 8 |  | Not Started |
 | AQU3 | 1 | Grundfunktionen | Als Nutzer möchte ich Fische füttern können. | Ein Füttern-Button muss vorhanden sein. Fische reagieren auf Fütterung. | 3 |  | Not Started |
 | AQU4 | 3 | Dekoration | Als Nutzer möchte ich Pflanzen in mein Aquarium setzen. | Ein Dekorations-Modus muss verfügbar sein. Pflanzen können platziert werden. | 5 |  | Not Started |
