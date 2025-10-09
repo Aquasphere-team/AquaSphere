@@ -18,6 +18,109 @@
   animation: fadeInDown 1s ease-out;
 }
 
+/* Auth panel styles */
+.auth-panel {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: rgba(0,0,0,0.25);
+  padding: 10px;
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  z-index: 40;
+}
+
+.auth-panel.hidden-in-preview { display: none !important; }
+
+.phone-profile-btn {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 40;
+  width: 42px;
+  height: 42px;
+  border-radius: 20px;
+  border: none;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+}
+
+.phone-menu-btn {
+  position: absolute;
+  top: 12px;
+  right: 60px; /* moved inward to avoid overlapping the exit button */
+  z-index: 40;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  font-size: 20px;
+}
+
+.phone-auth-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  background: rgba(0,0,0,0.35);
+  pointer-events: auto;
+}
+
+.phone-auth-card {
+  width: 88%;
+  max-width: 420px;
+  max-height: 70%;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border-radius: 12px;
+  overflow: auto;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+}
+
+.phone-auth-header { position: relative; height: 28px; }
+.close-phone-auth {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+}
+
+.phone-auth-body { padding-top: 6px; display:flex; flex-direction:column; gap:8px; }
+.auth-label { font-size: 0.85rem; color: #cfeee4; margin-bottom: 4px; }
+.auth-input { padding: 12px 10px; border-radius: 10px; font-size: 1rem; }
+.auth-actions-vertical { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+.control-btn.primary { background: linear-gradient(145deg, #00a8ff, #0066ff); min-width: unset; padding:12px; }
+.control-btn { width: 100%; min-width: unset; }
+
+.close-phone-auth { margin-top: 8px; }
+
+.auth-input {
+  display: block;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: #fff;
+}
+
+.auth-actions { display: flex; gap: 8px; }
+
+.logged-in { color: #bfeee0; margin-bottom: 6px; }
+
 .app-header h1 {
   font-size: 3.2rem;
   color: #00d4aa;
@@ -54,7 +157,7 @@
   animation: aquariumGlow 4s ease-in-out infinite alternate;
 }
 
-canvas {
+cavas, canvas {
   position: absolute;
   top: 0;
   left: 0;
@@ -244,6 +347,200 @@ canvas {
   box-shadow: 0 5px 20px rgba(0, 212, 170, 0.3);
 }
 
+.preview-btn {
+  min-width: 110px;
+  background: linear-gradient(145deg, #6c5ce7, #4b47b5);
+}
+
+/* Smartphone preview state */
+.aquarium-tank.phone-preview {
+  width: 360px;
+  height: 780px;
+  border-radius: 28px;
+  box-shadow:
+    0 30px 80px rgba(0,0,0,0.6),
+    inset 0 0 120px rgba(255,255,255,0.04);
+}
+
+@media (max-width: 420px) {
+  .aquarium-tank.phone-preview {
+    width: 320px;
+    height: 700px;
+  }
+}
+
+/* Phone mockup wrapper (hidden until preview active) */
+.phone-mockup {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-mockup.active {
+  display: block;
+}
+
+.phone-mockup .phone-top {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 28px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+}
+
+.phone-mockup .speaker {
+  width: 60px;
+  height: 6px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset;
+}
+
+.phone-mockup .notch {
+  position:absolute;
+  right: 12%;
+  width: 90px;
+  height: 16px;
+  background: rgba(0,0,0,0.35);
+  border-radius: 10px;
+  opacity: 0.9;
+}
+
+.phone-mockup .phone-screen {
+  width: 94%;
+  height: calc(100% - 32px);
+  margin: 16px auto;
+  overflow: hidden; /* prevent internal scrolling */
+  border-radius: 22px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.6) inset;
+  position: relative;
+}
+
+.phone-mockup .phone-side-buttons {
+  position: absolute;
+  right: -6px;
+  top: 30%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.phone-mockup .side-btn {
+  width: 4px;
+  height: 36px;
+  background: rgba(0,0,0,0.45);
+  border-radius: 2px;
+}
+
+/* Ensure canvas fills the phone-screen exactly when preview active */
+.aquarium-tank.phone-preview canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* hide external controls while in preview */
+.aquarium-controls.hidden-in-preview {
+  display: none !important;
+}
+
+/* in-screen control bar inside phone */
+.in-screen-controls {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 20;
+  transform-origin: bottom center;
+  transition: transform 200ms cubic-bezier(.2,.9,.2,1), opacity 160ms ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.deco-btn { background: linear-gradient(145deg, #7bed9f, #2ecc71); }
+
+/* Decoration palette inside phone */
+.decoration-palette {
+  position: absolute;
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  width: 86%;
+  background: rgba(0,0,0,0.45);
+  padding: 8px;
+  border-radius: 10px;
+  display:flex;
+  flex-direction: column;
+  gap:8px;
+}
+.palette-row { display:flex; gap:8px; justify-content: center; }
+.palette-item { background: transparent; border: none; color: #fff; display:flex; flex-direction:column; align-items:center; gap:6px; }
+.palette-swatch { width:36px; height:36px; border-radius:8px; box-shadow: inset 0 0 6px rgba(0,0,0,0.3); }
+.palette-label { font-size:0.8rem; color:#dfffe6; }
+.palette-actions { display:flex; justify-content:center; }
+
+/* hint while placing: cursor indicator */
+.placing-indicator { position:absolute; width:32px; height:32px; border-radius:50%; border:2px dashed rgba(255,255,255,0.6); pointer-events:none; z-index:45; transform: translate(-50%, -50%); }
+
+/* placement helper hint */
+.placing-hint {
+  position: absolute;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  pointer-events: none;
+  opacity: 0.95;
+}
+
+.phone-mockup .in-screen-controls .control-btn {
+  min-width: 44px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 1rem;
+  opacity: 0.95;
+}
+
+.in-screen-controls.open {
+  transform: translateX(-50%) translateY(0) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.in-screen-exit {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 80; /* ensure the exit button stays on top */
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.in-screen-exit:active { transform: scale(0.98); }
+
 .feed-btn:hover {
   background: linear-gradient(145deg, #ff7675, #e84393);
   box-shadow: 0 15px 30px rgba(255, 118, 117, 0.4);
@@ -397,3 +694,17 @@ canvas {
     font-size: 0.95rem;
   }
 }
+
+/* Desktop decoration palette */
+.desktop-decoration {
+  position: relative;
+  margin: 8px 0 18px 0; /* sit above controls */
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:8px;
+  z-index: 30;
+}
+.desktop-decoration .palette-row { display:flex; gap:12px; }
+.desktop-decoration .palette-item { background: rgba(0,0,0,0.35); padding:8px; border-radius:8px; }
+

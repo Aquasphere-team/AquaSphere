@@ -3,9 +3,102 @@
     <h1>🐠 AquaSphere</h1>
   </header>
 
+  <!-- Simple Auth Panel (simulated backend via localStorage) -->
+  <div class="auth-panel" [class.hidden-in-preview]="phonePreview">
+    <div *ngIf="!currentUser; else loggedIn">
+      <input class="auth-input" placeholder="Benutzername" [(ngModel)]="authName" />
+      <input class="auth-input" placeholder="Passwort" type="password" [(ngModel)]="authPass" />
+      <div class="auth-actions">
+        <button class="control-btn" (click)="register()">Registrieren</button>
+        <button class="control-btn" (click)="login()">Anmelden</button>
+      </div>
+    </div>
+    <ng-template #loggedIn>
+      <div class="logged-in">Angemeldet als <strong>{{ currentUser }}</strong></div>
+      <div class="auth-actions">
+        <button class="control-btn" (click)="saveUserState()">Speichern</button>
+        <button class="control-btn" (click)="logout()">Abmelden</button>
+      </div>
+    </ng-template>
+  </div>
+
   <main class="aquarium-main">
-    <div class="aquarium-tank">
-      <canvas #aquariumCanvas width="800" height="600"></canvas>
+  <div class="aquarium-tank" [class.phone-preview]="phonePreview">
+      <!-- Phone mockup wrapper (activated via .phone-preview on container) -->
+      <div class="phone-mockup" [class.active]="phonePreview">
+        <div class="phone-top">
+          <div class="speaker"></div>
+          <div class="notch"></div>
+        </div>
+          <!-- profile button inside phone (opens auth overlay) -->
+          <button class="phone-profile-btn" (click)="openPhoneAuth()" [hidden]="!phonePreview">👤</button>
+          <!-- menu button inside phone (toggles in-screen menu) -->
+          <button class="phone-menu-btn" (click)="toggleInScreenMenu()" [hidden]="!phonePreview">☰</button>
+          <div class="phone-screen">
+            <canvas #aquariumCanvas></canvas>
+
+            <!-- In-screen controls (animated): use class binding so CSS transitions apply -->
+            <div class="in-screen-controls" [class.open]="phonePreview && inScreenMenu">
+              <button class="control-btn feed-btn" (click)="feedFish()">🐟</button>
+              <button class="control-btn light-btn" (click)="toggleLight()">💡</button>
+              <button class="control-btn clean-btn" (click)="cleanAquarium()">🧽</button>
+              <button class="control-btn deco-btn" (click)="toggleDecorationPalette()">🪴</button>
+            </div>
+
+            <!-- Exit preview from inside the phone -->
+            <button class="in-screen-exit" aria-label="Exit Preview" (click)="togglePhonePreview()" [hidden]="!phonePreview">✕</button>
+          
+            <!-- in-phone auth overlay (rendered only when requested) -->
+            <ng-container *ngIf="phonePreview && inPhoneAuth">
+              <!-- clicking the overlay backdrop closes the auth overlay -->
+              <div class="phone-auth-overlay" (click)="closePhoneAuth()">
+                <!-- stop click propagation on the card so inner controls stay interactive -->
+                <div class="phone-auth-card" (click)="$event.stopPropagation()">
+                  <h3 *ngIf="!currentUser">Anmelden / Registrieren</h3>
+                  <h3 *ngIf="currentUser">Profil</h3>
+                  <div class="phone-auth-header">
+                    <button class="close-phone-auth" (click)="closePhoneAuth()">✕</button>
+                  </div>
+                  <div class="phone-auth-body">
+                    <label class="auth-label">Benutzername</label>
+                    <input class="auth-input" placeholder="Benutzername" [(ngModel)]="authName" />
+                    <label class="auth-label">Passwort</label>
+                    <input class="auth-input" placeholder="Passwort" type="password" [(ngModel)]="authPass" />
+
+                    <div class="auth-actions-vertical">
+                      <button class="control-btn primary" (click)="register()">Registrieren</button>
+                      <button class="control-btn primary" (click)="login()">Anmelden</button>
+                      <button class="control-btn" (click)="saveUserState()" *ngIf="currentUser">Speichern</button>
+                      <button class="control-btn" (click)="logout()">Abmelden</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+            <!-- Decoration palette (inside phone) - removed from DOM when not visible -->
+            <ng-container *ngIf="phonePreview && decorationPaletteVisible">
+              <div class="decoration-palette" (click)="$event.stopPropagation()">
+                <div class="palette-row">
+                  <button *ngFor="let p of plantTypes" class="palette-item" (click)="selectPlantType(p.id, 'phone')">
+                    <div class="palette-swatch" [style.background]="p.color"></div>
+                    <div class="palette-label">{{p.name}}</div>
+                  </button>
+                </div>
+                <div class="palette-actions">
+                  <button class="control-btn" (click)="cancelPlacing()">Abbrechen</button>
+                </div>
+              </div>
+            </ng-container>
+            <!-- placing indicator -->
+            <div id="placing-indicator" class="placing-indicator" [hidden]="!placingPlant"></div>
+            <!-- placement hint shown while placing -->
+            <div id="placing-hint" class="placing-hint" *ngIf="placingPlant">Tippe auf das Aquarium, um die Pflanze zu platzieren</div>
+          </div>
+        <div class="phone-side-buttons">
+          <div class="side-btn"></div>
+          <div class="side-btn"></div>
+        </div>
+      </div>
       <div class="aquarium-glass"></div>
       <div class="aquarium-frame"></div>
       
@@ -27,9 +120,15 @@
       </div>
     </div>
     
-    <div class="aquarium-controls">
+    <div class="aquarium-controls" [class.hidden-in-preview]="phonePreview">
       <button class="control-btn feed-btn" (click)="feedFish()">
         🐟 Füttern
+      </button>
+      <button class="control-btn" (click)="toggleDesktopDecorationPalette()">
+        🪴 Pflanzen
+      </button>
+      <button class="control-btn preview-btn" (click)="togglePhonePreview()">
+        📱 Vorschau
       </button>
       <button class="control-btn light-btn" (click)="toggleLight()">
         💡 Licht
@@ -37,6 +136,18 @@
       <button class="control-btn clean-btn" (click)="cleanAquarium()">
         🧽 Reinigen
       </button>
+    </div>
+    <!-- Desktop decoration palette (visible when not in phone preview) -->
+    <div class="desktop-decoration" *ngIf="!phonePreview && desktopDecorationVisible">
+      <div class="palette-row">
+                  <button *ngFor="let p of plantTypes" class="palette-item" (click)="selectPlantType(p.id, 'desktop')">
+          <div class="palette-swatch" [style.background]="p.color"></div>
+          <div class="palette-label">{{p.name}}</div>
+        </button>
+      </div>
+      <div class="palette-actions">
+        <button class="control-btn" (click)="desktopDecorationVisible=false">Schließen</button>
+      </div>
     </div>
   </main>
 
