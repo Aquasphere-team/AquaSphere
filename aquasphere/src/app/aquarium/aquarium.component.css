@@ -18,19 +18,7 @@
   animation: fadeInDown 1s ease-out;
 }
 
-/* Auth panel styles */
-.auth-panel {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  background: rgba(0,0,0,0.25);
-  padding: 10px;
-  border-radius: 10px;
-  backdrop-filter: blur(6px);
-  z-index: 40;
-}
-
-.auth-panel.hidden-in-preview { display: none !important; }
+/* Auth panel styles entfernt - nur noch Handy-Interface */
 
 .phone-profile-btn {
   position: absolute;
@@ -147,24 +135,27 @@
 
 .aquarium-tank {
   position: relative;
-  width: 800px;
-  height: 600px;
-  border-radius: 25px;
+  /* Handy-Größe als Standard */
+  width: 360px;
+  height: 780px;
+  border-radius: 28px;
   overflow: hidden;
-  box-shadow: 
-    0 0 60px rgba(0, 212, 170, 0.4),
-    inset 0 0 120px rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 30px 80px rgba(0,0,0,0.6),
+    inset 0 0 120px rgba(255,255,255,0.04);
   animation: aquariumGlow 4s ease-in-out infinite alternate;
+  contain: layout;
 }
 
-cavas, canvas {
+canvas {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
   z-index: 2;
-  border-radius: 25px;
+  border-radius: 22px; /* Anpassung an phone-screen border-radius */
+  display: block;
 }
 
 .aquarium-glass {
@@ -312,14 +303,7 @@ cavas, canvas {
   transform: rotate(15deg);
 }
 
-/* Steuerelemente */
-.aquarium-controls {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 10px;
-}
+/* Desktop-Steuerelemente entfernt - nur noch Handy-Interface */
 
 .control-btn {
   background: linear-gradient(145deg, #00d4aa, #00b894);
@@ -352,34 +336,19 @@ cavas, canvas {
   background: linear-gradient(145deg, #6c5ce7, #4b47b5);
 }
 
-/* Smartphone preview state */
-.aquarium-tank.phone-preview {
-  width: 360px;
-  height: 780px;
-  border-radius: 28px;
-  box-shadow:
-    0 30px 80px rgba(0,0,0,0.6),
-    inset 0 0 120px rgba(255,255,255,0.04);
-}
-
+/* Responsive Design für kleinere Bildschirme */
 @media (max-width: 420px) {
-  .aquarium-tank.phone-preview {
+  .aquarium-tank {
     width: 320px;
     height: 700px;
   }
 }
 
-/* Phone mockup wrapper (hidden until preview active) */
+/* Phone mockup wrapper - immer aktiv */
 .phone-mockup {
   position: relative;
   width: 100%;
   height: 100%;
-  display: none;
-  align-items: center;
-  justify-content: center;
-}
-
-.phone-mockup.active {
   display: block;
 }
 
@@ -440,16 +409,11 @@ cavas, canvas {
   border-radius: 2px;
 }
 
-/* Ensure canvas fills the phone-screen exactly when preview active */
-.aquarium-tank.phone-preview canvas {
+/* Canvas füllt immer den phone-screen aus */
+canvas {
   width: 100% !important;
   height: 100% !important;
   display: block;
-}
-
-/* hide external controls while in preview */
-.aquarium-controls.hidden-in-preview {
-  display: none !important;
 }
 
 /* in-screen control bar inside phone */
@@ -468,6 +432,7 @@ cavas, canvas {
 }
 
 .deco-btn { background: linear-gradient(145deg, #7bed9f, #2ecc71); }
+.fish-btn { background: linear-gradient(145deg, #74b9ff, #0984e3); }
 
 /* Decoration palette inside phone */
 .decoration-palette {
@@ -695,16 +660,5 @@ cavas, canvas {
   }
 }
 
-/* Desktop decoration palette */
-.desktop-decoration {
-  position: relative;
-  margin: 8px 0 18px 0; /* sit above controls */
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:8px;
-  z-index: 30;
-}
-.desktop-decoration .palette-row { display:flex; gap:12px; }
-.desktop-decoration .palette-item { background: rgba(0,0,0,0.35); padding:8px; border-radius:8px; }
+/* Desktop-Paletten entfernt - nur noch Handy-Interface */
 

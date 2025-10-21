@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnInit, ViewChild, OnDestroy } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, OnDestroy, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -9,8 +9,10 @@ import { FormsModule } from '@angular/forms';
   templateUrl: './aquarium.component.html',
   styleUrls: ['./aquarium.component.css']
 })
-export class AquariumComponent implements OnInit, OnDestroy {
+export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('aquariumCanvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
+
+
   
   private ctx!: CanvasRenderingContext2D;
   private particles: any[] = [];
@@ -18,7 +20,7 @@ export class AquariumComponent implements OnInit, OnDestroy {
   private lightIntensity = 1;
   private animationId?: number;
   private isRunning = true;
-  phonePreview = false;
+  phonePreview = true; // Handy-Version als Standard
   // auth state
   inScreenMenu = false;
   authName = '';
@@ -31,22 +33,56 @@ export class AquariumComponent implements OnInit, OnDestroy {
     { id: 'anubias', name: 'Anubias', color: '#0f7a4a' },
     { id: 'moss', name: 'Moos', color: '#2fa84f' }
   ];
+
+  // fish types and data
+  fishTypes = [
+    { id: 'goldfish', name: 'Goldfisch', color: '#FFD700', size: 25, speed: 1.2 },
+    { id: 'bluefish', name: 'Blauer Fisch', color: '#4169E1', size: 20, speed: 1.8 },
+    { id: 'redfish', name: 'Roter Fisch', color: '#DC143C', size: 18, speed: 2.0 },
+    { id: 'greenfish', name: 'Grüner Fisch', color: '#32CD32', size: 22, speed: 1.5 },
+    { id: 'angelfish', name: 'Kaiserfisch', color: '#FF69B4', size: 30, speed: 0.8 }
+  ];
   // plants store normalized positions (nx, ny) relative to canvas CSS size (0..1)
   plants: Array<{ type: string; nx?: number; ny?: number; x?: number; y?: number; scale?: number }> = [];
   decorationPaletteVisible = false;
-  // palette for desktop (non-phone) controls
-  desktopDecorationVisible = false;
+  
+  // fish data - each fish has position, movement, and behavioral properties
+  fish: Array<{
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    speedX: number;
+    speedY: number;
+    direction: number; // radians for facing direction
+    targetX?: number;
+    targetY?: number;
+    isFeeding: boolean;
+    hunger: number; // 0-100
+    lastFeedTime: number;
+    size: number;
+    color: string;
+  }> = [];
+  
+  fishPaletteVisible = false;
+  // plant controls
   placingPlant = false;
   selectedPlantType: string | null = null;
+  placingFish = false;
+  selectedFishType: string | null = null;
 
   ngOnInit(): void {
     // ensure transient UI flags are reset on start (do this before attaching listeners)
     this.inPhoneAuth = false;
     this.decorationPaletteVisible = false;
     this.placingPlant = false;
+  }
 
-    this.initializeAquarium();
-    console.log('🐠 AquaSphere Angular gestartet!');
+  ngAfterViewInit(): void {
+    // Canvas should be available now
+    setTimeout(() => {
+      this.initializeAquarium();
+    }, 100);
   }
 
   ngOnDestroy(): void {
@@ -55,8 +91,7 @@ export class AquariumComponent implements OnInit, OnDestroy {
       cancelAnimationFrame(this.animationId);
     }
     try {
-      window.removeEventListener('resize', this.resizeHandler);
-      // also remove canvas click listener if attached
+      // remove canvas click listener if attached
       try { this.canvasRef?.nativeElement?.removeEventListener('pointerup', this.canvasClickHandler as EventListener); } catch {}
     } catch (e) {
       // ignore
@@ -66,121 +101,230 @@ export class AquariumComponent implements OnInit, OnDestroy {
   private initializeAquarium(): void {
     const canvas = this.canvasRef.nativeElement;
     this.ctx = canvas.getContext('2d')!;
-    this.initializeCanvas();
+    
+    console.log('Canvas before setup:', { 
+      width: canvas.width, 
+      height: canvas.height, 
+      styleWidth: canvas.style.width, 
+      styleHeight: canvas.style.height,
+      clientWidth: canvas.clientWidth,
+      clientHeight: canvas.clientHeight
+    });
+    
+    // Set canvas size directly
+    canvas.width = 800;
+    canvas.height = 600;
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    
+    console.log('Canvas after setup:', { 
+      width: canvas.width, 
+      height: canvas.height, 
+      styleWidth: canvas.style.width, 
+      styleHeight: canvas.style.height,
+      clientWidth: canvas.clientWidth,
+      clientHeight: canvas.clientHeight
+    });
+    
     this.createWaterParticles();
-    // attach pointerup handler for placing plants (works for mouse/touch/pen)
+    this.createStarterFish();
+    this.createStarterPlants();
+    
+    // attach click handler
     try { canvas.addEventListener('pointerup', this.canvasClickHandler as EventListener); } catch {}
+    
+    // Add resize handler
+    window.addEventListener('resize', this.handleResize);
+    setTimeout(() => this.handleResize(), 100);
+    
     this.animate();
   }
 
-  private initializeCanvas(): void {
-    // initial sizing and add responsive listener
-    this.resizeHandler();
-    window.addEventListener('resize', this.resizeHandler);
+  private createStarterFish(): void {
+    // Create fish with fixed, guaranteed visible coordinates
+    this.fish = [
+      {
+        id: 'starter1',
+        type: 'goldfish',
+        x: 200,
+        y: 300,
+        speedX: 1,
+        speedY: 0.5,
+        direction: 0,
+        isFeeding: false,
+        hunger: 50,
+        lastFeedTime: Date.now(),
+        size: 25,
+        color: '#FFD700'
+      },
+      {
+        id: 'starter2',
+        type: 'bluefish',
+        x: 500,
+        y: 200,
+        speedX: -1,
+        speedY: 0.3,
+        direction: Math.PI,
+        isFeeding: false,
+        hunger: 60,
+        lastFeedTime: Date.now(),
+        size: 20,
+        color: '#4169E1'
+      },
+      {
+        id: 'starter3',
+        type: 'redfish',
+        x: 350,
+        y: 450,
+        speedX: 0.5,
+        speedY: -0.8,
+        direction: Math.PI/2,
+        isFeeding: false,
+        hunger: 40,
+        lastFeedTime: Date.now(),
+        size: 18,
+        color: '#DC143C'
+      }
+    ];
   }
 
-  togglePhonePreview(): void {
-    // Toggle the preview state. We rely on Angular class binding in the template
-    // instead of manipulating DOM classes directly. This keeps UI state and DOM in sync
-    // and avoids timing issues when measuring layout for the canvas resize.
-    this.phonePreview = !this.phonePreview;
+  private createStarterPlants(): void {
+    // Add some starter plants with fixed coordinates
+    this.plants = [
+      { type: 'fern', nx: 0.1, ny: 0.8, scale: 1 },
+      { type: 'anubias', nx: 0.7, ny: 0.9, scale: 1.2 },
+      { type: 'moss', nx: 0.3, ny: 0.75, scale: 0.8 }
+    ];
+  }
 
-    if (this.phonePreview) {
-      // entering preview: close unrelated overlays
-      this.inScreenMenu = false;
-      this.inPhoneAuth = false;
+  private handleResize = (): void => {
+    const canvas = this.canvasRef.nativeElement;
+    if (!canvas) return;
+    
+    // Nur noch phone-screen container verwenden
+    const container = canvas.closest('.phone-screen') as HTMLElement;
+    
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      console.log('Resizing canvas to phone screen:', {
+        width: rect.width,
+        height: rect.height
+      });
+      
+      // Set canvas size to match phone screen
+      canvas.width = Math.max(1, Math.floor(rect.width));
+      canvas.height = Math.max(1, Math.floor(rect.height));
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
     } else {
-      // leaving preview: reset all in-phone specific UI
-      this.inScreenMenu = false;
-      this.inPhoneAuth = false;
-      this.decorationPaletteVisible = false;
-      this.desktopDecorationVisible = false;
-      this.placingPlant = false;
-      this.selectedPlantType = null;
+      console.log('No phone-screen container found, using fallback size');
+      canvas.width = 375; // iPhone-ähnliche Breite
+      canvas.height = 667; // iPhone-ähnliche Höhe
     }
-
-    // wait a tick for layout to settle (class binding applied), then resize canvas
-    setTimeout(() => this.resizeHandler(), 50);
   }
+
+
+
+  // togglePhonePreview entfernt - nur noch Handy-Version
 
   toggleInScreenMenu(): void {
-    // Toggle the in-phone menu (shown only via the phone button)
     this.inScreenMenu = !this.inScreenMenu;
-    // Close auth overlay and decoration palette when opening menu to avoid overlap
     if (this.inScreenMenu) {
       this.inPhoneAuth = false;
       this.decorationPaletteVisible = false;
+      this.fishPaletteVisible = false;
       this.placingPlant = false;
+      this.placingFish = false;
     }
   }
 
   // Decoration / plants
   toggleDecorationPalette(): void {
-    // Only allow decoration palette inside phone preview
-    if (!this.phonePreview) return;
-
     this.decorationPaletteVisible = !this.decorationPaletteVisible;
     if (this.decorationPaletteVisible) {
       this.inPhoneAuth = false;
       this.inScreenMenu = false;
       this.placingPlant = false;
+      this.placingFish = false; // Reset auch fish placing
     }
   }
 
-  selectPlantType(id: string, source: 'desktop' | 'phone' = 'desktop'): void {
-    // If the user selected from the desktop while the phone preview is active,
-    // close the phone preview so placement occurs on the main canvas.
-    if (source === 'desktop' && this.phonePreview) {
-      this.togglePhonePreview();
-    }
-
+  selectPlantType(id: string, source: 'desktop' | 'phone' = 'phone'): void {
     this.selectedPlantType = id;
     this.placingPlant = true;
-    // hide both palettes while placing to avoid them covering the canvas
+    // hide palettes while placing to avoid them covering the canvas
     this.decorationPaletteVisible = false;
-    this.desktopDecorationVisible = false;
     try { window.addEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
     console.log('Select plant:', id, 'source:', source);
   }
 
-  toggleDesktopDecorationPalette(): void {
-    // only allowed when not in phone preview
-    if (this.phonePreview) return;
-    this.desktopDecorationVisible = !this.desktopDecorationVisible;
-    if (this.desktopDecorationVisible) {
+  // Desktop-Paletten entfernt
+
+  toggleFishPalette(): void {
+    this.fishPaletteVisible = !this.fishPaletteVisible;
+    if (this.fishPaletteVisible) {
       this.inPhoneAuth = false;
       this.inScreenMenu = false;
+      this.decorationPaletteVisible = false;
       this.placingPlant = false;
+      this.placingFish = false; // Reset auch fish placing
     }
+  }
+
+  // Desktop-Fish-Palette entfernt
+
+  selectFishType(id: string, source: 'desktop' | 'phone' = 'phone'): void {
+    this.selectedFishType = id;
+    this.placingFish = true;
+    this.fishPaletteVisible = false;
+    try { window.addEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
+  }
+
+  cancelFishPlacing(): void {
+    this.placingFish = false;
+    this.selectedFishType = null;
+    try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
+  }
+
+  debugAddFish(): void {
+    const randomX = Math.random() * 600 + 100;
+    const randomY = Math.random() * 400 + 100;
+    this.addFish('goldfish', randomX, randomY);
   }
 
   cancelPlacing(): void {
     this.placingPlant = false;
     this.selectedPlantType = null;
+    this.placingFish = false;
+    this.selectedFishType = null;
   try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
   }
 
   private canvasClickHandler = (ev: PointerEvent) => {
-    if (!this.placingPlant) return;
     const canvas = this.canvasRef.nativeElement;
     const rect = canvas.getBoundingClientRect();
-    // Use CSS-pixel coordinates (local to the canvas) because the ctx is scaled with setTransform
     const cssX = ((ev as any).clientX - rect.left);
     const cssY = ((ev as any).clientY - rect.top);
-    if (!this.selectedPlantType) return;
-    // store normalized coordinates so placement survives resizes
-    const nx = Math.max(0, Math.min(1, cssX / rect.width));
-    const ny = Math.max(0, Math.min(1, cssY / rect.height));
-    this.plants.push({ type: this.selectedPlantType, nx, ny, scale: 1 });
-    this.placingPlant = false;
-    this.selectedPlantType = null;
-    try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
-    console.log('Placed plant at', cssX, cssY);
-    this.saveUserState();
+    
+    if (this.placingPlant && this.selectedPlantType) {
+      const nx = Math.max(0, Math.min(1, cssX / rect.width));
+      const ny = Math.max(0, Math.min(1, cssY / rect.height));
+      this.plants.push({ type: this.selectedPlantType, nx, ny, scale: 1 });
+      this.placingPlant = false;
+      this.selectedPlantType = null;
+      try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
+      this.saveUserState();
+    } else if (this.placingFish && this.selectedFishType) {
+      this.addFish(this.selectedFishType, cssX, cssY);
+      this.placingFish = false;
+      this.selectedFishType = null;
+      try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
+      this.saveUserState();
+    }
   }
 
   private mouseMoveHandler = (ev: PointerEvent) => {
-    if (!this.placingPlant) return;
+    if (!this.placingPlant && !this.placingFish) return;
     const indicator = document.getElementById('placing-indicator');
     if (!indicator) return;
     const canvas = this.canvasRef.nativeElement;
@@ -195,41 +339,9 @@ export class AquariumComponent implements OnInit, OnDestroy {
     indicator.style.top = localY + 'px';
   }
 
-  private resizeHandler = (): void => {
-    const canvas = this.canvasRef.nativeElement;
-    try {
-      if (this.phonePreview) {
-        // prefer the phone-screen element if available
-        const phoneScreen = canvas.closest('.phone-screen') as HTMLElement | null;
-        if (phoneScreen) {
-          this.resizeCanvasToElement(phoneScreen, true);
-          return;
-        }
-      }
-      const container = canvas.parentElement as HTMLElement;
-      if (container) {
-        this.resizeCanvasToElement(container, true);
-      }
-    } catch (e) {
-      // silent fallback
-    }
-  }
 
-  private resizeCanvasToElement(el: HTMLElement, useDPR = true): void {
-    const canvas = this.canvasRef.nativeElement;
-    const rect = el.getBoundingClientRect();
-    const scale = useDPR ? (window.devicePixelRatio || 1) : 1;
 
-    // set CSS size to match the container's layout size (CSS pixels)
-    canvas.style.width = rect.width + 'px';
-    canvas.style.height = rect.height + 'px';
 
-    // set backing store size for crisp rendering
-    canvas.width = Math.max(1, Math.floor(rect.width * scale));
-    canvas.height = Math.max(1, Math.floor(rect.height * scale));
-    // make drawing operations use CSS pixels coordinates
-    this.ctx.setTransform(scale, 0, 0, scale, 0, 0);
-  }
 
   private createWaterParticles(): void {
     this.particles = [];
@@ -244,6 +356,37 @@ export class AquariumComponent implements OnInit, OnDestroy {
         color: this.getRandomWaterColor()
       });
     }
+  }
+
+
+
+  private addFish(type: string, x?: number, y?: number): void {
+    const fishType = this.fishTypes.find(t => t.id === type);
+    if (!fishType) return;
+
+    const canvasWidth = 800;
+    const canvasHeight = 600;
+    
+    const margin = fishType.size * 1.5;
+    const safeX = x !== undefined ? x : Math.random() * (canvasWidth - 2 * margin) + margin;
+    const safeY = y !== undefined ? y : Math.random() * (canvasHeight - 2 * margin) + margin;
+
+    const fish = {
+      id: `fish_${Date.now()}_${Math.random()}`,
+      type: type,
+      x: Math.max(margin, Math.min(safeX, canvasWidth - margin)),
+      y: Math.max(margin, Math.min(safeY, canvasHeight - margin)),
+      speedX: (Math.random() - 0.5) * fishType.speed,
+      speedY: (Math.random() - 0.5) * fishType.speed * 0.5,
+      direction: Math.random() * Math.PI * 2,
+      isFeeding: false,
+      hunger: Math.random() * 50 + 25,
+      lastFeedTime: Date.now(),
+      size: fishType.size,
+      color: fishType.color
+    };
+
+    this.fish.push(fish);
   }
 
   // --- Authentication (simulated backend via localStorage) ---
@@ -280,10 +423,7 @@ export class AquariumComponent implements OnInit, OnDestroy {
   }
 
   openPhoneAuth(): void {
-    // Only allow opening the in-phone auth when the phone preview is active.
-    if (!this.phonePreview) return;
-
-    // Toggle the in-phone auth overlay; ensure other in-phone UI is closed when auth opens
+    // Toggle the in-phone auth overlay; ensure other UI is closed when auth opens
     this.inPhoneAuth = !this.inPhoneAuth;
     if (this.inPhoneAuth) {
       this.inScreenMenu = false;
@@ -301,7 +441,8 @@ export class AquariumComponent implements OnInit, OnDestroy {
     const state = {
       lightIntensity: this.lightIntensity,
       particles: this.particles,
-      plants: this.plants
+      plants: this.plants,
+      fish: this.fish
     };
     localStorage.setItem(`aqua_user_${this.currentUser}`, JSON.stringify(state));
     alert('Dein Aquarium wurde gespeichert.');
@@ -316,6 +457,7 @@ export class AquariumComponent implements OnInit, OnDestroy {
       if (state.lightIntensity) this.lightIntensity = state.lightIntensity;
       if (Array.isArray(state.particles)) this.particles = state.particles;
       if (Array.isArray(state.plants)) this.plants = state.plants;
+      if (Array.isArray(state.fish)) this.fish = state.fish;
     } catch (e) {
       console.warn('Invalid user state');
     }
@@ -354,6 +496,204 @@ export class AquariumComponent implements OnInit, OnDestroy {
     });
   }
 
+  private updateFish(): void {
+    const canvas = this.canvasRef.nativeElement;
+    const now = Date.now();
+    
+    // Use canvas actual dimensions
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    
+    this.fish.forEach(fish => {
+      // Update position
+      fish.x += fish.speedX;
+      fish.y += fish.speedY;
+      
+      // Improved boundary collision detection and bouncing
+      const margin = fish.size * 1.5; // Increased margin for better boundary detection
+      const maxX = canvasWidth - margin;
+      const maxY = canvasHeight - margin;
+      
+      // Check horizontal boundaries and bounce
+      if (fish.x <= margin) {
+        fish.x = margin;
+        fish.speedX = Math.abs(fish.speedX); // Always bounce to the right
+        fish.direction = Math.atan2(fish.speedY, fish.speedX);
+      } else if (fish.x >= maxX) {
+        fish.x = maxX;
+        fish.speedX = -Math.abs(fish.speedX); // Always bounce to the left
+        fish.direction = Math.atan2(fish.speedY, fish.speedX);
+      }
+      
+      // Check vertical boundaries and bounce
+      if (fish.y <= margin) {
+        fish.y = margin;
+        fish.speedY = Math.abs(fish.speedY); // Always bounce downward
+        fish.direction = Math.atan2(fish.speedY, fish.speedX);
+      } else if (fish.y >= maxY) {
+        fish.y = maxY;
+        fish.speedY = -Math.abs(fish.speedY); // Always bounce upward
+        fish.direction = Math.atan2(fish.speedY, fish.speedX);
+      }
+      
+      // Ensure fish stay strictly within bounds (safety net)
+      fish.x = Math.max(margin, Math.min(fish.x, maxX));
+      fish.y = Math.max(margin, Math.min(fish.y, maxY));
+      
+      // Random direction changes for natural movement
+      if (Math.random() < 0.005) {
+        const fishType = this.fishTypes.find(t => t.id === fish.type);
+        const speed = fishType ? fishType.speed : 1;
+        fish.speedX += (Math.random() - 0.5) * 0.5;
+        fish.speedY += (Math.random() - 0.5) * 0.3;
+        
+        // Limit speed
+        const currentSpeed = Math.sqrt(fish.speedX * fish.speedX + fish.speedY * fish.speedY);
+        if (currentSpeed > speed * 2) {
+          fish.speedX = (fish.speedX / currentSpeed) * speed;
+          fish.speedY = (fish.speedY / currentSpeed) * speed;
+        }
+        
+        fish.direction = Math.atan2(fish.speedY, fish.speedX);
+      }
+      
+      // Update hunger over time
+      fish.hunger = Math.min(100, fish.hunger + (now - fish.lastFeedTime) / 30000); // increase hunger over time
+      fish.lastFeedTime = now;
+      
+      // Look for food particles if hungry
+      if (fish.hunger > 60 && !fish.isFeeding) {
+        const foodParticles = this.particles.filter(p => p.isFeed);
+        if (foodParticles.length > 0) {
+          const nearestFood = foodParticles.reduce((nearest, p) => {
+            const distToP = Math.sqrt((p.x - fish.x) ** 2 + (p.y - fish.y) ** 2);
+            const distToNearest = nearest ? Math.sqrt((nearest.x - fish.x) ** 2 + (nearest.y - fish.y) ** 2) : Infinity;
+            return distToP < distToNearest ? p : nearest;
+          }, null as any);
+          
+          if (nearestFood) {
+            fish.targetX = nearestFood.x;
+            fish.targetY = nearestFood.y;
+            fish.isFeeding = true;
+          }
+        }
+      }
+      
+      // Move towards food if feeding
+      if (fish.isFeeding && fish.targetX !== undefined && fish.targetY !== undefined) {
+        const dx = fish.targetX - fish.x;
+        const dy = fish.targetY - fish.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < fish.size) {
+          // Reached food - eat it
+          const foodIndex = this.particles.findIndex(p => p.x === fish.targetX && p.y === fish.targetY && p.isFeed);
+          if (foodIndex >= 0) {
+            this.particles.splice(foodIndex, 1);
+            fish.hunger = Math.max(0, fish.hunger - 30);
+          }
+          fish.isFeeding = false;
+          fish.targetX = undefined;
+          fish.targetY = undefined;
+        } else {
+          // Move towards food
+          const speed = 2;
+          fish.speedX = (dx / distance) * speed;
+          fish.speedY = (dy / distance) * speed;
+          fish.direction = Math.atan2(fish.speedY, fish.speedX);
+        }
+      }
+    });
+  }
+
+  private drawFish(): void {
+    this.fish.forEach(fish => {
+      this.ctx.save();
+      this.ctx.translate(fish.x, fish.y);
+      this.ctx.rotate(fish.direction);
+
+      // Add swimming animation with subtle size pulsing
+      const swimPulse = Math.sin(Date.now() * 0.01 + fish.x * 0.01) * 0.1 + 1;
+      const scaleX = swimPulse;
+      const scaleY = 1 / swimPulse; // Inverse scaling for natural movement
+      this.ctx.scale(scaleX, scaleY);
+
+      // Draw fish body with gradient for more depth
+      const gradient = this.ctx.createRadialGradient(0, 0, 0, 0, 0, fish.size);
+      gradient.addColorStop(0, fish.color);
+      gradient.addColorStop(0.7, fish.color);
+      gradient.addColorStop(1, this.darkenColor(fish.color, 0.3));
+
+      this.ctx.beginPath();
+      this.ctx.fillStyle = gradient;
+      this.ctx.globalAlpha = 0.9;
+      this.ctx.ellipse(0, 0, fish.size * 0.8, fish.size * 0.5, 0, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Draw fish tail
+      this.ctx.beginPath();
+      this.ctx.fillStyle = fish.color;
+      this.ctx.globalAlpha = 0.7;
+      this.ctx.moveTo(-fish.size * 0.8, 0);
+      this.ctx.lineTo(-fish.size * 1.3, -fish.size * 0.3);
+      this.ctx.lineTo(-fish.size * 1.3, fish.size * 0.3);
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      // Draw fish eye
+      this.ctx.beginPath();
+      this.ctx.fillStyle = 'white';
+      this.ctx.globalAlpha = 1;
+      this.ctx.arc(fish.size * 0.3, -fish.size * 0.15, fish.size * 0.15, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Draw pupil
+      this.ctx.beginPath();
+      this.ctx.fillStyle = 'black';
+      this.ctx.arc(fish.size * 0.35, -fish.size * 0.15, fish.size * 0.08, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Draw fins based on fish type
+      this.ctx.globalAlpha = 0.6;
+      this.ctx.fillStyle = fish.color;
+      
+      if (fish.type === 'angelfish') {
+        // Draw long fins for angelfish
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, -fish.size * 0.5);
+        this.ctx.lineTo(fish.size * 0.2, -fish.size * 1.2);
+        this.ctx.lineTo(fish.size * 0.4, -fish.size * 0.8);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, fish.size * 0.5);
+        this.ctx.lineTo(fish.size * 0.2, fish.size * 1.2);
+        this.ctx.lineTo(fish.size * 0.4, fish.size * 0.8);
+        this.ctx.closePath();
+        this.ctx.fill();
+      } else {
+        // Standard fins
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, -fish.size * 0.5);
+        this.ctx.lineTo(fish.size * 0.3, -fish.size * 0.8);
+        this.ctx.lineTo(fish.size * 0.5, -fish.size * 0.4);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, fish.size * 0.5);
+        this.ctx.lineTo(fish.size * 0.3, fish.size * 0.8);
+        this.ctx.lineTo(fish.size * 0.5, fish.size * 0.4);
+        this.ctx.closePath();
+        this.ctx.fill();
+      }
+
+      this.ctx.restore();
+      this.ctx.globalAlpha = 1;
+    });
+  }
+
   private getRandomWaterColor(): string {
     const colors = [
       'rgba(135, 206, 235, 0.4)',  // Sky blue
@@ -362,6 +702,23 @@ export class AquariumComponent implements OnInit, OnDestroy {
       'rgba(70, 130, 180, 0.4)',   // Steel blue
     ];
     return colors[Math.floor(Math.random() * colors.length)];
+  }
+
+  private darkenColor(color: string, factor: number): string {
+    // Simple color darkening for fish gradients
+    if (color.startsWith('#')) {
+      const hex = color.slice(1);
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      
+      const darkenedR = Math.floor(r * (1 - factor));
+      const darkenedG = Math.floor(g * (1 - factor));
+      const darkenedB = Math.floor(b * (1 - factor));
+      
+      return `rgb(${darkenedR}, ${darkenedG}, ${darkenedB})`;
+    }
+    return color; // Fallback for non-hex colors
   }
 
   private animate(): void {
@@ -376,6 +733,9 @@ export class AquariumComponent implements OnInit, OnDestroy {
     this.drawWaterParticles();
     // draw user-placed plants
     this.drawPlants();
+    // update and draw fish
+    this.updateFish();
+    this.drawFish();
     // Bodengrund entfernen: keine sand- oder gravel-Füllung mehr
     // Stattdessen zeichnen wir dezente Wellen an der Oberfläche
     this.drawSurfaceWaves();
@@ -449,30 +809,48 @@ export class AquariumComponent implements OnInit, OnDestroy {
   private drawWaterParticles(): void {
     const canvas = this.canvasRef.nativeElement;
     
-    this.particles.forEach(particle => {
-      // Bewegung
-      particle.x += particle.speedX;
-      particle.y += particle.speedY;
+    this.particles.forEach((particle, index) => {
+      // Sanfte Bewegung mit Sinus-Wellen für natürlichen Effekt
+      particle.x += particle.speedX + Math.sin(Date.now() * 0.001 + index) * 0.5;
+      particle.y += particle.speedY + Math.cos(Date.now() * 0.0015 + index) * 0.3;
       
-      // Bounds checking
+      // Bounds checking with gentle bouncing
       if (particle.x < 0 || particle.x > canvas.width) {
-        particle.speedX *= -1;
+        particle.speedX *= -0.8; // Softer bounce
+        particle.x = Math.max(0, Math.min(particle.x, canvas.width));
       }
       if (particle.y < 0 || particle.y > canvas.height) {
-        particle.speedY *= -1;
+        particle.speedY *= -0.8; // Softer bounce
+        particle.y = Math.max(0, Math.min(particle.y, canvas.height));
       }
       
-      // Partikel zeichnen
+      // Partikel mit Glow-Effekt zeichnen
       this.ctx.globalAlpha = particle.opacity;
+      
+      // Glow effect
+      const glowGradient = this.ctx.createRadialGradient(
+        particle.x, particle.y, 0,
+        particle.x, particle.y, particle.size * 3
+      );
+      glowGradient.addColorStop(0, particle.color);
+      glowGradient.addColorStop(0.4, particle.color.replace('0.4)', '0.1)'));
+      glowGradient.addColorStop(1, 'transparent');
+      
+      this.ctx.fillStyle = glowGradient;
+      this.ctx.beginPath();
+      this.ctx.arc(particle.x, particle.y, particle.size * 3, 0, Math.PI * 2);
+      this.ctx.fill();
+      
+      // Main particle
       this.ctx.beginPath();
       this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
       this.ctx.fillStyle = particle.color;
       this.ctx.fill();
       this.ctx.globalAlpha = 1;
       
-      // Leichte Opacity-Animation
-      particle.opacity += (Math.random() - 0.5) * 0.03;
-      particle.opacity = Math.max(0.1, Math.min(0.8, particle.opacity));
+      // Schönere Opacity-Animation
+      particle.opacity += Math.sin(Date.now() * 0.002 + index) * 0.01;
+      particle.opacity = Math.max(0.2, Math.min(0.8, particle.opacity));
     });
   }
 
@@ -494,21 +872,27 @@ export class AquariumComponent implements OnInit, OnDestroy {
 
   private drawCausticEffect(): void {
     const canvas = this.canvasRef.nativeElement;
-    const time = Date.now() * 0.002;
+    const time = Date.now() * 0.001;
     
-    this.ctx.globalAlpha = 0.15;
+    this.ctx.globalAlpha = 0.2;
     
-    for (let i = 0; i < 8; i++) {
-      const x = (Math.sin(time + i * 0.8) * 0.4 + 0.5) * canvas.width;
-      const y = (Math.cos(time * 1.2 + i * 0.6) * 0.3 + 0.4) * canvas.height;
+    // More dynamic caustic patterns
+    for (let i = 0; i < 12; i++) {
+      const phase = i * 0.5;
+      const x = (Math.sin(time * 0.8 + phase) * 0.4 + 0.5) * canvas.width;
+      const y = (Math.cos(time * 1.1 + phase) * 0.35 + 0.45) * canvas.height;
       
-      const causticGradient = this.ctx.createRadialGradient(x, y, 0, x, y, 90);
-      causticGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+      // Variable size based on time
+      const size = 60 + Math.sin(time * 2 + phase) * 30;
+      
+      const causticGradient = this.ctx.createRadialGradient(x, y, 0, x, y, size);
+      causticGradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+      causticGradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.4)');
       causticGradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.1)');
       causticGradient.addColorStop(1, 'transparent');
       
       this.ctx.beginPath();
-      this.ctx.arc(x, y, 90, 0, Math.PI * 2);
+      this.ctx.arc(x, y, size, 0, Math.PI * 2);
       this.ctx.fillStyle = causticGradient;
       this.ctx.fill();
     }
