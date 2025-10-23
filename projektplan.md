@@ -84,14 +84,14 @@
 
 ## Zeitleiste & Meilensteine
 
-| Phase | Dauer | Meilenstein |
-|-------|-------|-------------|
-| Konzept & Planung | 2-3 Wochen | Abnahme des finalen App-Konzepts |
-| Design & Prototyping | 3-4 Wochen | Fertigstellung interaktiver Prototypen |
-| Technische Entwicklung | 8-10 Wochen | Alpha-Version mit Kernfunktionen |
-| Testing & Optimierung | 2-3 Wochen | Stabile Beta-Version |
-| Beta-Test & Feedback | 2 Wochen | Implementierung der Beta-Anpassungen |
-| Launch & Marketing | 1 Woche | Live-Veröffentlichung |
+| Phase | Dauer       | Meilenstein |
+|-------|-------------|-------------|
+| Konzept & Planung | 02.10.2025  | Abnahme des finalen App-Konzepts |
+| Design & Prototyping | 09.10.2025  | Fertigstellung interaktiver Prototypen |
+| Technische Entwicklung | 06.11.2025  | Alpha-Version mit Kernfunktionen |
+| Testing & Optimierung | 18.12.2025  | Stabile Beta-Version |
+| Beta-Test & Feedback | 15.01.2026  | Implementierung der Beta-Anpassungen |
+| Launch & Marketing | 12.02.2026  | Live-Veröffentlichung |
 | Nachbetreuung/Updates | fortlaufend | Erste Erweiterung nach 4 Wochen |
 
 **Gesamtdauer:** 4-5 Monate bis zum Launch
