@@ -13,7 +13,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('aquariumCanvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
 
 
-  
+
   private ctx!: CanvasRenderingContext2D;
   private particles: any[] = [];
   private waveOffset = 0;
@@ -45,7 +45,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   // plants store normalized positions (nx, ny) relative to canvas CSS size (0..1)
   plants: Array<{ type: string; nx?: number; ny?: number; x?: number; y?: number; scale?: number }> = [];
   decorationPaletteVisible = false;
-  
+
   // fish data - each fish has position, movement, and behavioral properties
   fish: Array<{
     id: string;
@@ -63,7 +63,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     size: number;
     color: string;
   }> = [];
-  
+
   fishPaletteVisible = false;
   // plant controls
   placingPlant = false;
@@ -101,42 +101,42 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   private initializeAquarium(): void {
     const canvas = this.canvasRef.nativeElement;
     this.ctx = canvas.getContext('2d')!;
-    
-    console.log('Canvas before setup:', { 
-      width: canvas.width, 
-      height: canvas.height, 
-      styleWidth: canvas.style.width, 
+
+    console.log('Canvas before setup:', {
+      width: canvas.width,
+      height: canvas.height,
+      styleWidth: canvas.style.width,
       styleHeight: canvas.style.height,
       clientWidth: canvas.clientWidth,
       clientHeight: canvas.clientHeight
     });
-    
+
     // Set canvas size directly
     canvas.width = 800;
     canvas.height = 600;
     canvas.style.width = '100%';
     canvas.style.height = '100%';
-    
-    console.log('Canvas after setup:', { 
-      width: canvas.width, 
-      height: canvas.height, 
-      styleWidth: canvas.style.width, 
+
+    console.log('Canvas after setup:', {
+      width: canvas.width,
+      height: canvas.height,
+      styleWidth: canvas.style.width,
       styleHeight: canvas.style.height,
       clientWidth: canvas.clientWidth,
       clientHeight: canvas.clientHeight
     });
-    
+
     this.createWaterParticles();
     this.createStarterFish();
     this.createStarterPlants();
-    
+
     // attach click handler
     try { canvas.addEventListener('pointerup', this.canvasClickHandler as EventListener); } catch {}
-    
+
     // Add resize handler
     window.addEventListener('resize', this.handleResize);
     setTimeout(() => this.handleResize(), 100);
-    
+
     this.animate();
   }
 
@@ -200,17 +200,17 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   private handleResize = (): void => {
     const canvas = this.canvasRef.nativeElement;
     if (!canvas) return;
-    
+
     // Nur noch phone-screen container verwenden
     const container = canvas.closest('.phone-screen') as HTMLElement;
-    
+
     if (container) {
       const rect = container.getBoundingClientRect();
       console.log('Resizing canvas to phone screen:', {
         width: rect.width,
         height: rect.height
       });
-      
+
       // Set canvas size to match phone screen
       canvas.width = Math.max(1, Math.floor(rect.width));
       canvas.height = Math.max(1, Math.floor(rect.height));
@@ -305,7 +305,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     const rect = canvas.getBoundingClientRect();
     const cssX = ((ev as any).clientX - rect.left);
     const cssY = ((ev as any).clientY - rect.top);
-    
+
     if (this.placingPlant && this.selectedPlantType) {
       const nx = Math.max(0, Math.min(1, cssX / rect.width));
       const ny = Math.max(0, Math.min(1, cssY / rect.height));
@@ -366,7 +366,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
     const canvasWidth = 800;
     const canvasHeight = 600;
-    
+
     const margin = fishType.size * 1.5;
     const safeX = x !== undefined ? x : Math.random() * (canvasWidth - 2 * margin) + margin;
     const safeY = y !== undefined ? y : Math.random() * (canvasHeight - 2 * margin) + margin;
@@ -445,7 +445,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       fish: this.fish
     };
     localStorage.setItem(`aqua_user_${this.currentUser}`, JSON.stringify(state));
-    alert('Dein Aquarium wurde gespeichert.');
+    window.alert('Dein Aquarium wurde gespeichert.');
   }
 
   loadUserState(): void {
@@ -499,21 +499,21 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   private updateFish(): void {
     const canvas = this.canvasRef.nativeElement;
     const now = Date.now();
-    
+
     // Use canvas actual dimensions
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
-    
+
     this.fish.forEach(fish => {
       // Update position
       fish.x += fish.speedX;
       fish.y += fish.speedY;
-      
+
       // Improved boundary collision detection and bouncing
       const margin = fish.size * 1.5; // Increased margin for better boundary detection
       const maxX = canvasWidth - margin;
       const maxY = canvasHeight - margin;
-      
+
       // Check horizontal boundaries and bounce
       if (fish.x <= margin) {
         fish.x = margin;
@@ -524,7 +524,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         fish.speedX = -Math.abs(fish.speedX); // Always bounce to the left
         fish.direction = Math.atan2(fish.speedY, fish.speedX);
       }
-      
+
       // Check vertical boundaries and bounce
       if (fish.y <= margin) {
         fish.y = margin;
@@ -535,32 +535,32 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         fish.speedY = -Math.abs(fish.speedY); // Always bounce upward
         fish.direction = Math.atan2(fish.speedY, fish.speedX);
       }
-      
+
       // Ensure fish stay strictly within bounds (safety net)
       fish.x = Math.max(margin, Math.min(fish.x, maxX));
       fish.y = Math.max(margin, Math.min(fish.y, maxY));
-      
+
       // Random direction changes for natural movement
       if (Math.random() < 0.005) {
         const fishType = this.fishTypes.find(t => t.id === fish.type);
         const speed = fishType ? fishType.speed : 1;
         fish.speedX += (Math.random() - 0.5) * 0.5;
         fish.speedY += (Math.random() - 0.5) * 0.3;
-        
+
         // Limit speed
         const currentSpeed = Math.sqrt(fish.speedX * fish.speedX + fish.speedY * fish.speedY);
         if (currentSpeed > speed * 2) {
           fish.speedX = (fish.speedX / currentSpeed) * speed;
           fish.speedY = (fish.speedY / currentSpeed) * speed;
         }
-        
+
         fish.direction = Math.atan2(fish.speedY, fish.speedX);
       }
-      
+
       // Update hunger over time
       fish.hunger = Math.min(100, fish.hunger + (now - fish.lastFeedTime) / 30000); // increase hunger over time
       fish.lastFeedTime = now;
-      
+
       // Look for food particles if hungry
       if (fish.hunger > 60 && !fish.isFeeding) {
         const foodParticles = this.particles.filter(p => p.isFeed);
@@ -570,7 +570,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
             const distToNearest = nearest ? Math.sqrt((nearest.x - fish.x) ** 2 + (nearest.y - fish.y) ** 2) : Infinity;
             return distToP < distToNearest ? p : nearest;
           }, null as any);
-          
+
           if (nearestFood) {
             fish.targetX = nearestFood.x;
             fish.targetY = nearestFood.y;
@@ -578,13 +578,13 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
           }
         }
       }
-      
+
       // Move towards food if feeding
       if (fish.isFeeding && fish.targetX !== undefined && fish.targetY !== undefined) {
         const dx = fish.targetX - fish.x;
         const dy = fish.targetY - fish.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        
+
         if (distance < fish.size) {
           // Reached food - eat it
           const foodIndex = this.particles.findIndex(p => p.x === fish.targetX && p.y === fish.targetY && p.isFeed);
@@ -656,7 +656,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       // Draw fins based on fish type
       this.ctx.globalAlpha = 0.6;
       this.ctx.fillStyle = fish.color;
-      
+
       if (fish.type === 'angelfish') {
         // Draw long fins for angelfish
         this.ctx.beginPath();
@@ -711,11 +711,11 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       const r = parseInt(hex.slice(0, 2), 16);
       const g = parseInt(hex.slice(2, 4), 16);
       const b = parseInt(hex.slice(4, 6), 16);
-      
+
       const darkenedR = Math.floor(r * (1 - factor));
       const darkenedG = Math.floor(g * (1 - factor));
       const darkenedB = Math.floor(b * (1 - factor));
-      
+
       return `rgb(${darkenedR}, ${darkenedG}, ${darkenedB})`;
     }
     return color; // Fallback for non-hex colors
@@ -752,7 +752,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     gradient.addColorStop(0.3, 'rgba(70, 130, 180, 0.4)');
     gradient.addColorStop(0.7, 'rgba(25, 25, 112, 0.6)');
     gradient.addColorStop(1, 'rgba(0, 0, 139, 0.8)');
-    
+
     this.ctx.fillStyle = gradient;
     this.ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
@@ -808,12 +808,12 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private drawWaterParticles(): void {
     const canvas = this.canvasRef.nativeElement;
-    
+
     this.particles.forEach((particle, index) => {
       // Sanfte Bewegung mit Sinus-Wellen für natürlichen Effekt
       particle.x += particle.speedX + Math.sin(Date.now() * 0.001 + index) * 0.5;
       particle.y += particle.speedY + Math.cos(Date.now() * 0.0015 + index) * 0.3;
-      
+
       // Bounds checking with gentle bouncing
       if (particle.x < 0 || particle.x > canvas.width) {
         particle.speedX *= -0.8; // Softer bounce
@@ -823,10 +823,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         particle.speedY *= -0.8; // Softer bounce
         particle.y = Math.max(0, Math.min(particle.y, canvas.height));
       }
-      
+
       // Partikel mit Glow-Effekt zeichnen
       this.ctx.globalAlpha = particle.opacity;
-      
+
       // Glow effect
       const glowGradient = this.ctx.createRadialGradient(
         particle.x, particle.y, 0,
@@ -835,19 +835,19 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       glowGradient.addColorStop(0, particle.color);
       glowGradient.addColorStop(0.4, particle.color.replace('0.4)', '0.1)'));
       glowGradient.addColorStop(1, 'transparent');
-      
+
       this.ctx.fillStyle = glowGradient;
       this.ctx.beginPath();
       this.ctx.arc(particle.x, particle.y, particle.size * 3, 0, Math.PI * 2);
       this.ctx.fill();
-      
+
       // Main particle
       this.ctx.beginPath();
       this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
       this.ctx.fillStyle = particle.color;
       this.ctx.fill();
       this.ctx.globalAlpha = 1;
-      
+
       // Schönere Opacity-Animation
       particle.opacity += Math.sin(Date.now() * 0.002 + index) * 0.01;
       particle.opacity = Math.max(0.2, Math.min(0.8, particle.opacity));
@@ -856,16 +856,16 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private drawLightEffect(): void {
     const canvas = this.canvasRef.nativeElement;
-    
+
     // Licht von oben
     const lightGradient = this.ctx.createLinearGradient(0, 0, 0, canvas.height / 2);
     lightGradient.addColorStop(0, `rgba(255, 255, 255, ${0.15 * this.lightIntensity})`);
     lightGradient.addColorStop(0.4, `rgba(255, 255, 255, ${0.08 * this.lightIntensity})`);
     lightGradient.addColorStop(1, 'transparent');
-    
+
     this.ctx.fillStyle = lightGradient;
     this.ctx.fillRect(0, 0, canvas.width, canvas.height / 2);
-    
+
     // Licht-Pulsation
     this.lightIntensity = 0.7 + Math.sin(Date.now() * 0.003) * 0.3;
   }
@@ -873,37 +873,37 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   private drawCausticEffect(): void {
     const canvas = this.canvasRef.nativeElement;
     const time = Date.now() * 0.001;
-    
+
     this.ctx.globalAlpha = 0.2;
-    
+
     // More dynamic caustic patterns
     for (let i = 0; i < 12; i++) {
       const phase = i * 0.5;
       const x = (Math.sin(time * 0.8 + phase) * 0.4 + 0.5) * canvas.width;
       const y = (Math.cos(time * 1.1 + phase) * 0.35 + 0.45) * canvas.height;
-      
+
       // Variable size based on time
       const size = 60 + Math.sin(time * 2 + phase) * 30;
-      
+
       const causticGradient = this.ctx.createRadialGradient(x, y, 0, x, y, size);
       causticGradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
       causticGradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.4)');
       causticGradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.1)');
       causticGradient.addColorStop(1, 'transparent');
-      
+
       this.ctx.beginPath();
       this.ctx.arc(x, y, size, 0, Math.PI * 2);
       this.ctx.fillStyle = causticGradient;
       this.ctx.fill();
     }
-    
+
     this.ctx.globalAlpha = 1;
   }
 
   // Button Event Handlers
   feedFish(): void {
     console.log('🐟 Fische werden gefüttert!');
-    
+
     // Futter-Partikel hinzufügen
     for (let i = 0; i < 10; i++) {
       setTimeout(() => {
@@ -929,10 +929,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
   cleanAquarium(): void {
     console.log('🧽 Aquarium wird gereinigt!');
-    
+
     // Futter-Partikel entfernen
     this.particles = this.particles.filter(p => !p.isFeed);
-    
+
     // Neue saubere Partikel hinzufügen
     for (let i = 0; i < 8; i++) {
       this.particles.push({
