@@ -25,6 +25,7 @@
               <button class="control-btn clean-btn" (click)="cleanAquarium()">🧽</button>
               <button class="control-btn deco-btn" (click)="toggleDecorationPalette()">🪴</button>
               <button class="control-btn fish-btn" (click)="toggleFishPalette()">🐠</button>
+              <button class="control-btn remove-btn" [class.active]="removeMode" (click)="toggleRemoveMode()">🗑️</button>
             </div>
 
             <!-- Exit button entfernt - nur noch Handy-Version -->
@@ -59,9 +60,15 @@
             <!-- Decoration palette - removed from DOM when not visible -->
             <ng-container *ngIf="decorationPaletteVisible">
               <div class="decoration-palette" (click)="$event.stopPropagation()">
+                <div class="palette-tabs">
+                  <button class="tab" [class.active]="selectedDecorationCategory === 'plants'" (click)="selectedDecorationCategory='plants'">Pflanzen</button>
+                  <button class="tab" [class.active]="selectedDecorationCategory === 'rocks'" (click)="selectedDecorationCategory='rocks'">Steine</button>
+                  <button class="tab" [class.active]="selectedDecorationCategory === 'coral'" (click)="selectedDecorationCategory='coral'">Korallen</button>
+                </div>
                 <div class="palette-row">
-                  <button *ngFor="let p of plantTypes" class="palette-item" (click)="selectPlantType(p.id, 'phone')">
-                    <div class="palette-swatch" [style.background]="p.color"></div>
+                  <button *ngFor="let p of decorationTypesFor(selectedDecorationCategory)" class="palette-item" (click)="selectDecorationType(p.id, 'phone')">
+                    <img class="palette-thumb" [src]="previews[p.id]" *ngIf="previews[p.id]" alt="{{p.name}}" />
+                    <div class="palette-swatch" [style.background]="p.color" *ngIf="!previews[p.id]"></div>
                     <div class="palette-label">{{p.name}}</div>
                   </button>
                 </div>
@@ -86,10 +93,11 @@
               </div>
             </ng-container>
             <!-- placing indicator -->
-            <div id="placing-indicator" class="placing-indicator" [hidden]="!placingPlant && !placingFish"></div>
+            <div id="placing-indicator" class="placing-indicator" [hidden]="!placingPlant && !placingFish && !placingDecoration"></div>
             <!-- placement hint shown while placing -->
             <div id="placing-hint" class="placing-hint" *ngIf="placingPlant">Tippe auf das Aquarium, um die Pflanze zu platzieren</div>
             <div id="placing-hint" class="placing-hint" *ngIf="placingFish">Tippe auf das Aquarium, um den Fisch zu platzieren</div>
+            <div id="placing-hint" class="placing-hint" *ngIf="placingDecoration">Tippe auf das Aquarium, um die Dekoration zu platzieren</div>
           </div>
         <div class="phone-side-buttons">
           <div class="side-btn"></div>

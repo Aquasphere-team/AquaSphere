@@ -433,6 +433,12 @@ canvas {
 
 .deco-btn { background: linear-gradient(145deg, #7bed9f, #2ecc71); }
 .fish-btn { background: linear-gradient(145deg, #74b9ff, #0984e3); }
+.remove-btn { background: linear-gradient(145deg, #ff6b6b, #e84393); }
+.remove-btn.active { box-shadow: 0 12px 30px rgba(232, 67, 147, 0.35); transform: translateY(-2px); }
+
+.palette-tabs { display:flex; gap:8px; justify-content:center; margin-bottom:8px; }
+.palette-tabs .tab { background: rgba(255,255,255,0.03); border: none; color: #e6f7ef; padding:6px 10px; border-radius:8px; cursor:pointer; }
+.palette-tabs .tab.active { background: linear-gradient(145deg, #00d4aa, #00b894); box-shadow: 0 8px 20px rgba(0,212,170,0.18); }
 
 /* Decoration palette inside phone */
 .decoration-palette {

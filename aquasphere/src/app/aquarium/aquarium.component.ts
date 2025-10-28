@@ -29,10 +29,36 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   inPhoneAuth = false;
   // decoration / plants
   plantTypes = [
-    { id: 'fern', name: 'Farn', color: '#1b8a36' },
-    { id: 'anubias', name: 'Anubias', color: '#0f7a4a' },
-    { id: 'moss', name: 'Moos', color: '#2fa84f' }
+    { id: 'fern', name: 'Farn', color: '#1b8a36', defaultScale: 1 },
+    // Increase defaults so Anubias and Moss are more visible
+    { id: 'anubias', name: 'Anubias', color: '#0f7a4a', defaultScale: 1.9 },
+    { id: 'moss', name: 'Moos', color: '#2fa84f', defaultScale: 1.6 }
   ];
+
+  // additional decoration types (stones, corals)
+  decorationTypes = [
+    { id: 'fern', category: 'plants', name: 'Farn', color: '#1b8a36', defaultScale: 1 },
+    { id: 'anubias', category: 'plants', name: 'Anubias', color: '#0f7a4a', defaultScale: 1.1 },
+    { id: 'moss', category: 'plants', name: 'Moos', color: '#2fa84f', defaultScale: 0.8 },
+    { id: 'stone_small', category: 'rocks', name: 'Kleiner Stein', color: '#9e9e9e', defaultScale: 0.8 },
+    { id: 'stone_big', category: 'rocks', name: 'Großer Stein', color: '#6b6b6b', defaultScale: 1.6 },
+    { id: 'coral_red', category: 'coral', name: 'Koralle (rot)', color: '#ff6b6b', defaultScale: 1 },
+    { id: 'coral_orange', category: 'coral', name: 'Koralle (orange)', color: '#ff9f43', defaultScale: 0.95 }
+  ];
+
+  // store for non-plant decorations (stones, corals)
+  decorations: Array<{ type: string; nx?: number; ny?: number; x?: number; y?: number; scale?: number }> = [];
+
+  // previews for decoration thumbnails
+  previews: Record<string, string> = {};
+
+  // placement state for decorations
+  placingDecoration = false;
+  selectedDecorationType: string | null = null;
+
+  // removal mode (click to remove nearest decoration/plant)
+  removeMode = false;
+  selectedDecorationCategory: 'plants' | 'rocks' | 'coral' = 'plants';
 
   // fish types and data
   fishTypes = [
@@ -98,6 +124,108 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  private createStarterFish(): void {
+    // Create a few visible starter fish
+    this.fish = [];
+    this.fish.push({ id: 'starter1', type: 'goldfish', x: 200, y: 300, speedX: 1, speedY: 0.5, direction: 0, isFeeding: false, hunger: 50, lastFeedTime: Date.now(), size: 25, color: '#FFD700' });
+    this.fish.push({ id: 'starter2', type: 'bluefish', x: 500, y: 200, speedX: -1, speedY: 0.3, direction: Math.PI, isFeeding: false, hunger: 60, lastFeedTime: Date.now(), size: 20, color: '#4169E1' });
+    this.fish.push({ id: 'starter3', type: 'redfish', x: 350, y: 450, speedX: 0.5, speedY: -0.8, direction: Math.PI / 2, isFeeding: false, hunger: 40, lastFeedTime: Date.now(), size: 18, color: '#DC143C' });
+  }
+
+  private createStarterPlants(): void {
+    this.plants = [
+      { type: 'fern', nx: 0.1, ny: 0.8, scale: 1 },
+      { type: 'anubias', nx: 0.7, ny: 0.9, scale: 1.1 },
+      { type: 'moss', nx: 0.3, ny: 0.75, scale: 1 }
+    ];
+  }
+
+  private handleResize = (): void => {
+    const canvas = this.canvasRef.nativeElement;
+    if (!canvas) return;
+
+    // Nur noch phone-screen container verwenden
+    const container = canvas.closest('.phone-screen') as HTMLElement;
+
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      // Set canvas size to match phone screen
+      canvas.width = Math.max(1, Math.floor(rect.width));
+      canvas.height = Math.max(1, Math.floor(rect.height));
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+    } else {
+      canvas.width = 375; // fallback
+      canvas.height = 667;
+    }
+  }
+
+  private generatePreviews(): void {
+    try {
+      const w = 80; const h = 56;
+      this.decorationTypes.forEach(t => {
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        const g = c.getContext('2d')!;
+        g.clearRect(0, 0, w, h);
+        // draw a small background hint
+        g.fillStyle = 'rgba(0,0,0,0)';
+        g.fillRect(0,0,w,h);
+        const cx = w / 2; const cy = h / 2 + 6;
+        if (t.category === 'plants') {
+          if (t.id === 'fern') {
+            g.fillStyle = t.color;
+            for (let i = 0; i < 4; i++) {
+              g.beginPath();
+              g.ellipse(cx + (i - 1.5) * 4, cy, 4, 12 - i * 2, (i - 1) * 0.15, 0, Math.PI * 2);
+              g.fill();
+            }
+          } else if (t.id === 'anubias') {
+            g.fillStyle = t.color;
+            for (let i = 0; i < 3; i++) {
+              g.beginPath();
+              g.ellipse(cx - 6 + i * 6, cy - i * 4, 10 - i * 2, 6 - i, -0.2 + i * 0.12, 0, Math.PI * 2);
+              g.fill();
+            }
+          } else {
+            g.fillStyle = t.color;
+            for (let i = 0; i < 8; i++) {
+              g.beginPath();
+              g.arc(cx - 12 + i * 3.2, cy + (i % 2 === 0 ? 2 : 0), 1.6, 0, Math.PI * 2);
+              g.fill();
+            }
+          }
+        } else if (t.category === 'rocks') {
+          g.fillStyle = t.color;
+          for (let k = 0; k < 3; k++) {
+            const offX = (k - 1) * 6;
+            const rx = 10 + k * 3;
+            const ry = 6 + k * 2;
+            g.beginPath();
+            g.ellipse(cx + offX, cy, rx, ry, (k - 1) * 0.1, 0, Math.PI * 2);
+            g.fill();
+          }
+        } else if (t.category === 'coral') {
+          g.strokeStyle = this.darkenColor(t.color, 0.12);
+          g.lineWidth = 2;
+          g.beginPath();
+          g.moveTo(cx, cy + 6);
+          g.quadraticCurveTo(cx + 4, cy - 4, cx + 6, cy - 12);
+          g.moveTo(cx, cy + 6);
+          g.quadraticCurveTo(cx - 6, cy - 2, cx - 10, cy - 10);
+          g.stroke();
+          g.fillStyle = t.color;
+          g.beginPath();
+          g.arc(cx + 6, cy - 12, 3, 0, Math.PI * 2);
+          g.fill();
+        }
+        this.previews[t.id] = c.toDataURL('image/png');
+      });
+    } catch (e) {
+      // ignore in non-DOM environments
+    }
+  }
+
   private initializeAquarium(): void {
     const canvas = this.canvasRef.nativeElement;
     this.ctx = canvas.getContext('2d')!;
@@ -137,90 +265,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     window.addEventListener('resize', this.handleResize);
     setTimeout(() => this.handleResize(), 100);
 
+    // create small thumbnails used in palette
+    try { this.generatePreviews(); } catch (e) { /* ignore */ }
+
     this.animate();
-  }
-
-  private createStarterFish(): void {
-    // Create fish with fixed, guaranteed visible coordinates
-    this.fish = [
-      {
-        id: 'starter1',
-        type: 'goldfish',
-        x: 200,
-        y: 300,
-        speedX: 1,
-        speedY: 0.5,
-        direction: 0,
-        isFeeding: false,
-        hunger: 50,
-        lastFeedTime: Date.now(),
-        size: 25,
-        color: '#FFD700'
-      },
-      {
-        id: 'starter2',
-        type: 'bluefish',
-        x: 500,
-        y: 200,
-        speedX: -1,
-        speedY: 0.3,
-        direction: Math.PI,
-        isFeeding: false,
-        hunger: 60,
-        lastFeedTime: Date.now(),
-        size: 20,
-        color: '#4169E1'
-      },
-      {
-        id: 'starter3',
-        type: 'redfish',
-        x: 350,
-        y: 450,
-        speedX: 0.5,
-        speedY: -0.8,
-        direction: Math.PI/2,
-        isFeeding: false,
-        hunger: 40,
-        lastFeedTime: Date.now(),
-        size: 18,
-        color: '#DC143C'
-      }
-    ];
-  }
-
-  private createStarterPlants(): void {
-    // Add some starter plants with fixed coordinates
-    this.plants = [
-      { type: 'fern', nx: 0.1, ny: 0.8, scale: 1 },
-      { type: 'anubias', nx: 0.7, ny: 0.9, scale: 1.2 },
-      { type: 'moss', nx: 0.3, ny: 0.75, scale: 0.8 }
-    ];
-  }
-
-  private handleResize = (): void => {
-    const canvas = this.canvasRef.nativeElement;
-    if (!canvas) return;
-
-    // Nur noch phone-screen container verwenden
-    const container = canvas.closest('.phone-screen') as HTMLElement;
-
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      console.log('Resizing canvas to phone screen:', {
-        width: rect.width,
-        height: rect.height
-      });
-
-      // Set canvas size to match phone screen
-      canvas.width = Math.max(1, Math.floor(rect.width));
-      canvas.height = Math.max(1, Math.floor(rect.height));
-      canvas.style.width = '100%';
-      canvas.style.height = '100%';
-    } else {
-      console.log('No phone-screen container found, using fallback size');
-      canvas.width = 375; // iPhone-ähnliche Breite
-      canvas.height = 667; // iPhone-ähnliche Höhe
-    }
   }
 
 
@@ -306,12 +354,73 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     const cssX = ((ev as any).clientX - rect.left);
     const cssY = ((ev as any).clientY - rect.top);
 
+    // If remove mode active, try to remove nearest decoration or plant
+    if (this.removeMode) {
+      const threshold = Math.max(16, Math.min(48, rect.width * 0.06));
+      let removed = false;
+      // check plants
+      let nearestPlantIndex = -1;
+      let nearestPlantDist = Infinity;
+      this.plants.forEach((p, i) => {
+        const px = (p.nx !== undefined) ? p.nx * rect.width : (p.x ?? 0);
+        const py = (p.ny !== undefined) ? p.ny * rect.height : (p.y ?? 0);
+        const d = Math.hypot(px - cssX, py - cssY);
+        if (d < nearestPlantDist) { nearestPlantDist = d; nearestPlantIndex = i; }
+      });
+      if (nearestPlantIndex >= 0 && nearestPlantDist <= threshold) {
+        this.plants.splice(nearestPlantIndex, 1);
+        removed = true;
+      }
+
+      // check decorations if none removed yet
+      if (!removed) {
+        let nearestDecIndex = -1;
+        let nearestDecDist = Infinity;
+        this.decorations.forEach((d, i) => {
+          const px = (d.nx !== undefined) ? d.nx * rect.width : (d.x ?? 0);
+          const py = (d.ny !== undefined) ? d.ny * rect.height : (d.y ?? 0);
+          const dist = Math.hypot(px - cssX, py - cssY);
+          if (dist < nearestDecDist) { nearestDecDist = dist; nearestDecIndex = i; }
+        });
+        if (nearestDecIndex >= 0 && nearestDecDist <= threshold) {
+          this.decorations.splice(nearestDecIndex, 1);
+          removed = true;
+        }
+      }
+
+      if (removed) {
+        this.saveUserState();
+      }
+      return;
+    }
+
     if (this.placingPlant && this.selectedPlantType) {
       const nx = Math.max(0, Math.min(1, cssX / rect.width));
       const ny = Math.max(0, Math.min(1, cssY / rect.height));
-      this.plants.push({ type: this.selectedPlantType, nx, ny, scale: 1 });
+      // Use plant type defaultScale so placed plants match palette size
+      const plantDef = this.plantTypes.find(pt => pt.id === this.selectedPlantType as string) as any;
+      const scale = plantDef && plantDef.defaultScale ? plantDef.defaultScale : 1;
+      this.plants.push({ type: this.selectedPlantType, nx, ny, scale });
       this.placingPlant = false;
       this.selectedPlantType = null;
+      try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
+      this.saveUserState();
+    } else if (this.placingDecoration && this.selectedDecorationType) {
+      const nx = Math.max(0, Math.min(1, cssX / rect.width));
+      const ny = Math.max(0, Math.min(1, cssY / rect.height));
+      // if the selected decoration is actually a plant id, keep using plants array for compatibility
+      const isPlant = this.plantTypes.find(p => p.id === this.selectedDecorationType);
+      if (isPlant) {
+        const plantDef = this.plantTypes.find(pt => pt.id === this.selectedDecorationType as string) as any;
+        const scale = plantDef && plantDef.defaultScale ? plantDef.defaultScale : 1;
+        this.plants.push({ type: this.selectedDecorationType, nx, ny, scale: scale });
+      } else {
+        const decType = this.decorationTypes.find(t => t.id === this.selectedDecorationType as string) as any;
+        const scale = decType && decType.defaultScale ? decType.defaultScale : 1;
+        this.decorations.push({ type: this.selectedDecorationType as string, nx, ny, scale: scale });
+      }
+      this.placingDecoration = false;
+      this.selectedDecorationType = null;
       try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
       this.saveUserState();
     } else if (this.placingFish && this.selectedFishType) {
@@ -324,7 +433,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private mouseMoveHandler = (ev: PointerEvent) => {
-    if (!this.placingPlant && !this.placingFish) return;
+    if (!this.placingPlant && !this.placingFish && !this.placingDecoration) return;
     const indicator = document.getElementById('placing-indicator');
     if (!indicator) return;
     const canvas = this.canvasRef.nativeElement;
@@ -337,6 +446,29 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     localY = Math.max(0, Math.min(localY, rect.height));
     indicator.style.left = localX + 'px';
     indicator.style.top = localY + 'px';
+  }
+
+  selectDecorationType(id: string, source: 'desktop' | 'phone' = 'phone'): void {
+    this.selectedDecorationType = id;
+    this.placingDecoration = true;
+    this.decorationPaletteVisible = false;
+    try { window.addEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
+    console.log('Select decoration:', id, 'source:', source);
+  }
+
+  toggleRemoveMode(): void {
+    this.removeMode = !this.removeMode;
+    if (this.removeMode) {
+      // when entering remove mode, close other overlays
+      this.inScreenMenu = false;
+      this.decorationPaletteVisible = false;
+      this.fishPaletteVisible = false;
+    }
+    console.log('Remove mode:', this.removeMode);
+  }
+
+  decorationTypesFor(category: string) {
+    return this.decorationTypes.filter(d => d.category === category);
   }
 
 
@@ -443,6 +575,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       particles: this.particles,
       plants: this.plants,
       fish: this.fish
+      ,decorations: this.decorations
     };
     localStorage.setItem(`aqua_user_${this.currentUser}`, JSON.stringify(state));
     window.alert('Dein Aquarium wurde gespeichert.');
@@ -458,6 +591,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       if (Array.isArray(state.particles)) this.particles = state.particles;
       if (Array.isArray(state.plants)) this.plants = state.plants;
       if (Array.isArray(state.fish)) this.fish = state.fish;
+      if (Array.isArray(state.decorations)) this.decorations = state.decorations;
     } catch (e) {
       console.warn('Invalid user state');
     }
@@ -478,18 +612,103 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       const type = this.plantTypes.find(t => t.id === p.type);
       const color = type ? type.color : '#2fa84f';
       // use CSS-pixel width for sizing so plants keep consistent visual size
-      const size = (p.scale || 1) * Math.max(16, Math.min(48, rect.width * 0.04));
-      // Draw a simple stylized plant: bunch of leaves
+      const baseSize = Math.max(12, Math.min(64, rect.width * 0.04));
+  const size = (p.scale || 1) * baseSize * (type && (type as any).defaultScale ? (type as any).defaultScale : 1);
+
+      // draw based on plant type
       this.ctx.save();
-      // translate to computed pixel position
       this.ctx.translate(px, py);
-      for (let i = 0; i < 5; i++) {
+      if (p.type === 'fern') {
+        // tall fern with multiple fronds
+        // stem
         this.ctx.beginPath();
-        this.ctx.fillStyle = color;
-        this.ctx.globalAlpha = 0.9 - i * 0.12;
-        const sway = Math.sin((this.waveOffset + i) * 1.2) * (4 + i);
-        this.ctx.ellipse(sway, -i * (size * 0.25), size * 0.18, size * 0.5, (i - 2) * 0.15, 0, Math.PI * 2);
-        this.ctx.fill();
+        this.ctx.strokeStyle = this.darkenColor(color, 0.18);
+        this.ctx.lineWidth = Math.max(2, size * 0.06);
+        this.ctx.moveTo(0, 6);
+        this.ctx.lineTo(0, -size * 0.9);
+        this.ctx.stroke();
+
+        for (let i = 0; i < 6; i++) {
+          const length = size * (0.7 + i * 0.18);
+          const sway = Math.sin(this.waveOffset * 1.2 + i) * (3 + i * 1.6);
+          for (let j = 0; j < 8; j++) {
+            const y = - (j / 8) * length;
+            const x = sway + Math.sin(j * 0.6 + this.waveOffset) * (5 + i);
+            const leafW = size * (0.14 + i * 0.02);
+            const leafH = length * 0.08;
+            const g = this.ctx.createLinearGradient(x - leafW, y - leafH, x + leafW, y + leafH);
+            g.addColorStop(0, this.darkenColor(color, 0.05));
+            g.addColorStop(1, color);
+            this.ctx.beginPath();
+            this.ctx.fillStyle = g;
+            this.ctx.globalAlpha = 0.95 - j * 0.08;
+            this.ctx.ellipse(x, y, leafW, leafH, (j - 3) * 0.12, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+        }
+      } else if (p.type === 'anubias') {
+        // broad layered leaves close to stem
+        const leaves = 4;
+        // small central stem
+        this.ctx.beginPath();
+        this.ctx.strokeStyle = this.darkenColor(color, 0.16);
+        this.ctx.lineWidth = Math.max(1.5, size * 0.04);
+        this.ctx.moveTo(0, 6);
+        this.ctx.lineTo(0, -size * 0.5);
+        this.ctx.stroke();
+
+        for (let i = 0; i < leaves; i++) {
+          const angle = (i - (leaves / 2)) * 0.25;
+          const lx = Math.cos(angle) * size * 0.08;
+          const ly = -i * (size * 0.12);
+          const leafW = size * 0.36;
+          const leafH = size * 0.18;
+          const g = this.ctx.createLinearGradient(lx - leafW, ly - leafH, lx + leafW, ly + leafH);
+          g.addColorStop(0, this.darkenColor(color, 0.06));
+          g.addColorStop(1, color);
+          this.ctx.beginPath();
+          this.ctx.fillStyle = g;
+          this.ctx.globalAlpha = 0.95 - i * 0.12;
+          this.ctx.ellipse(lx, ly, leafW, leafH, angle, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // central vein
+          this.ctx.beginPath();
+          this.ctx.strokeStyle = this.darkenColor(color, 0.28);
+          this.ctx.lineWidth = Math.max(0.8, size * 0.02);
+          this.ctx.moveTo(lx - leafW * 0.2, ly + leafH * 0.1);
+          this.ctx.lineTo(lx + leafW * 0.2, ly - leafH * 0.4);
+          this.ctx.stroke();
+        }
+      } else if (p.type === 'moss') {
+        // low moss cluster: many small tufts, slightly denser and layered
+        const seedBase = ((p.nx || 0) * 1000) + ((p.ny || 0) * 10000);
+        const rand = (s: number) => {
+          const v = Math.sin(s) * 10000;
+          return v - Math.floor(v);
+        };
+        for (let layer = 0; layer < 3; layer++) {
+          for (let i = 0; i < 10; i++) {
+            const rx = (rand(seedBase + layer * 7 + i * 13) - 0.5) * size * 0.6;
+            const ry = -rand(seedBase + layer * 11 + i * 17) * size * 0.25 - layer * (size * 0.06);
+            const r = Math.max(1.6, size * 0.03 + rand(seedBase + layer * 19 + i * 19) * size * 0.05);
+            this.ctx.beginPath();
+            this.ctx.fillStyle = this.darkenColor(color, 0.02 + layer * 0.03);
+            this.ctx.globalAlpha = 0.85 - (layer * 0.08);
+            this.ctx.arc(rx, ry, r, 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+        }
+      } else {
+        // fallback: generic leaves
+        for (let i = 0; i < 5; i++) {
+          this.ctx.beginPath();
+          this.ctx.fillStyle = color;
+          this.ctx.globalAlpha = 0.9 - i * 0.12;
+          const sway = Math.sin((this.waveOffset + i) * 1.2) * (4 + i);
+          this.ctx.ellipse(sway, -i * (size * 0.25), size * 0.18, size * 0.5, (i - 2) * 0.15, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
       }
       this.ctx.restore();
       this.ctx.globalAlpha = 1;
@@ -721,6 +940,23 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     return color; // Fallback for non-hex colors
   }
 
+  private lightenColor(color: string, factor: number): string {
+    // Simple color lightening by blending towards white
+    if (color.startsWith('#')) {
+      const hex = color.slice(1);
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+
+      const lightR = Math.min(255, Math.floor(r + (255 - r) * factor));
+      const lightG = Math.min(255, Math.floor(g + (255 - g) * factor));
+      const lightB = Math.min(255, Math.floor(b + (255 - b) * factor));
+
+      return `rgb(${lightR}, ${lightG}, ${lightB})`;
+    }
+    return color;
+  }
+
   private animate(): void {
     if (!this.isRunning) return;
 
@@ -731,6 +967,8 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.drawWaterBackground();
     this.drawCausticEffect();
     this.drawWaterParticles();
+    // draw non-plant decorations (stones, corals)
+    this.drawDecorations();
     // draw user-placed plants
     this.drawPlants();
     // update and draw fish
@@ -744,6 +982,8 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.waveOffset += 0.03;
     this.animationId = requestAnimationFrame(() => this.animate());
   }
+
+  
 
   private drawWaterBackground(): void {
     const canvas = this.canvasRef.nativeElement;
@@ -851,6 +1091,124 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       // Schönere Opacity-Animation
       particle.opacity += Math.sin(Date.now() * 0.002 + index) * 0.01;
       particle.opacity = Math.max(0.2, Math.min(0.8, particle.opacity));
+    });
+  }
+
+  private drawDecorations(): void {
+    const canvas = this.canvasRef.nativeElement;
+    const rect = canvas.getBoundingClientRect();
+
+    const seedFrom = (d: any) => {
+      const typeHash = d.type.split('').reduce((s: number, c: string) => s + c.charCodeAt(0), 0);
+      return Math.floor(((d.nx || 0) * 1000) + ((d.ny || 0) * 10000) + typeHash * 7);
+    };
+    const rand = (s: number) => {
+      const v = Math.sin(s) * 10000;
+      return v - Math.floor(v);
+    };
+
+    this.decorations.forEach(d => {
+      if ((d as any).x !== undefined && (d as any).y !== undefined && (d.nx === undefined || d.ny === undefined)) {
+        d.nx = ((d as any).x) / rect.width;
+        d.ny = ((d as any).y) / rect.height;
+      }
+      const px = (d.nx !== undefined) ? d.nx * rect.width : (d.x ?? 0);
+      const py = (d.ny !== undefined) ? d.ny * rect.height : (d.y ?? 0);
+      const type = this.decorationTypes.find(t => t.id === d.type);
+      const color = type ? type.color : '#888';
+
+      const seed = seedFrom(d);
+
+      this.ctx.save();
+      if (d.type.startsWith('stone')) {
+        const base = rect.width * 0.04 * (d.scale || 1);
+        const noise = (Math.sin(px * 0.01) + Math.cos(py * 0.01)) * 0.12;
+        const size = Math.max(6, base * (0.9 + noise));
+
+        for (let k = 0; k < 3; k++) {
+          const offX = (rand(seed + k * 11) - 0.5) * size * 0.36;
+          const offY = (rand(seed + k * 23) - 0.5) * size * 0.22;
+          const rx = size * (0.95 + k * 0.22);
+          const ry = size * (0.62 + k * 0.18);
+
+          const g = this.ctx.createRadialGradient(px + offX - rx * 0.18, py + offY - ry * 0.18, 0, px + offX, py + offY, Math.max(rx, ry) * 1.5);
+          g.addColorStop(0, this.lightenColor(color, 0.06));
+          g.addColorStop(1, this.darkenColor(color, 0.22));
+
+          this.ctx.beginPath();
+          this.ctx.fillStyle = g;
+          this.ctx.ellipse(px + offX, py + offY, rx, ry, (k - 1) * 0.18, 0, Math.PI * 2);
+          this.ctx.fill();
+        }
+
+        this.ctx.globalAlpha = 0.18;
+        this.ctx.fillStyle = 'rgba(0,0,0,0.36)';
+        this.ctx.beginPath();
+        this.ctx.ellipse(px, py + size * 0.6, size * 1.15, size * 0.42, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.globalAlpha = 1;
+
+      } else if (d.type.startsWith('coral')) {
+        const size = Math.max(12, rect.width * 0.045 * (d.scale || 1));
+        const branches = 3 + Math.floor((d.scale || 1) * 2);
+        const strokeColor = this.darkenColor(color, 0.12);
+
+        for (let b = 0; b < branches; b++) {
+          const angleBase = (b - (branches - 1) / 2) * 0.45;
+          const angleJitter = (rand(seed + b * 13) - 0.5) * 0.12;
+          const angle = angleBase + angleJitter + Math.sin(this.waveOffset * 0.12 + seed * 0.0005) * 0.06;
+          const length = size * (1 + rand(seed + b * 17) * 0.35);
+
+          this.ctx.beginPath();
+          this.ctx.moveTo(px, py);
+          let sx = px; let sy = py;
+          for (let seg = 0; seg < 4; seg++) {
+            const nx = sx + Math.cos(angle + seg * 0.12) * (length * 0.28);
+            const ny = sy - Math.abs(Math.sin(angle)) * (length * 0.28) - seg * (length * 0.17);
+            const cx = sx + (nx - sx) * 0.5 + (rand(seed + seg * 29 + b * 7) - 0.5) * size * 0.14;
+            const cy = sy + (ny - sy) * 0.5 + (rand(seed + seg * 31 + b * 11) - 0.5) * size * 0.08;
+            this.ctx.quadraticCurveTo(cx, cy, nx, ny);
+            sx = nx; sy = ny;
+          }
+
+          this.ctx.lineWidth = Math.max(2, size * 0.10);
+          this.ctx.strokeStyle = strokeColor;
+          this.ctx.lineCap = 'round';
+          this.ctx.stroke();
+
+          this.ctx.beginPath();
+          this.ctx.moveTo(px, py);
+          sx = px; sy = py;
+          for (let seg = 0; seg < 4; seg++) {
+            const nx = sx + Math.cos(angle + seg * 0.12) * (length * 0.28);
+            const ny = sy - Math.abs(Math.sin(angle)) * (length * 0.28) - seg * (length * 0.17);
+            const cx = sx + (nx - sx) * 0.5 + (rand(seed + seg * 37 + b * 5) - 0.5) * size * 0.14;
+            const cy = sy + (ny - sy) * 0.5 + (rand(seed + seg * 41 + b * 13) - 0.5) * size * 0.08;
+            this.ctx.quadraticCurveTo(cx, cy, nx, ny);
+            sx = nx; sy = ny;
+          }
+          this.ctx.fillStyle = color;
+          this.ctx.globalAlpha = 0.96;
+          this.ctx.fill();
+          this.ctx.globalAlpha = 1;
+
+          for (let pidx = 0; pidx < 4; pidx++) {
+            const t = 0.6 + pidx * 0.1;
+            const tipX = px + Math.cos(angle) * length * t + (rand(seed + pidx * 19) - 0.5) * size * 0.06;
+            const tipY = py - Math.abs(Math.sin(angle)) * length * t - (rand(seed + pidx * 23) * size * 0.06);
+            this.ctx.beginPath();
+            this.ctx.fillStyle = this.lightenColor(color, 0.04 + rand(seed + pidx * 29) * 0.06);
+            this.ctx.arc(tipX, tipY, Math.max(1.5, size * 0.05 + rand(seed + pidx * 31) * size * 0.03), 0, Math.PI * 2);
+            this.ctx.fill();
+          }
+        }
+      } else {
+        this.ctx.beginPath();
+        this.ctx.fillStyle = color;
+        this.ctx.arc(px, py, 8, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+      this.ctx.restore();
     });
   }
 
