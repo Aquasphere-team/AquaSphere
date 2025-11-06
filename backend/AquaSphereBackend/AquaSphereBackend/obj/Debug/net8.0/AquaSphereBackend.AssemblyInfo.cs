@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AquaSphereBackend")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+30939a3919debb44bbd939fe62f31d39fbfd8675")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d232c03aee8727e45a63db0c374aca7fd1f7f0f2")]
 [assembly: System.Reflection.AssemblyProductAttribute("AquaSphereBackend")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AquaSphereBackend")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
