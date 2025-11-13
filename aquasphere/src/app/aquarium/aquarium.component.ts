@@ -1,6 +1,7 @@
 import { Component, ElementRef, OnInit, ViewChild, OnDestroy, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { UserService } from '../../services/userService';
 
 @Component({
   selector: 'app-aquarium',
@@ -13,6 +14,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('aquariumCanvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
 
 
+  constructor(private userService: UserService) {}
 
   private ctx!: CanvasRenderingContext2D;
   private particles: any[] = [];
@@ -523,6 +525,11 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
   // --- Authentication (simulated backend via localStorage) ---
   register(): void {
+    const data: any = {username: this.authName, password: this.authPass};
+    this.userService.register(data);
+    return;
+  }
+  /*
     if (!this.authName || !this.authPass) return;
     const usersRaw = localStorage.getItem('aqua_users');
     const users = usersRaw ? JSON.parse(usersRaw) : {};
@@ -536,7 +543,14 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.authPass = '';
   }
 
+  */
+
   login(): void {
+    const data: any = {username: this.authName, password: this.authPass};
+    this.userService.login(data);
+    return;
+  }
+   /*
     if (!this.authName || !this.authPass) return;
     const usersRaw = localStorage.getItem('aqua_users');
     const users = usersRaw ? JSON.parse(usersRaw) : {};
@@ -550,8 +564,11 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.loadUserState();
   }
 
+    */
+
   logout(): void {
     this.currentUser = null;
+    this.userService.logout();
   }
 
   openPhoneAuth(): void {
@@ -983,7 +1000,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.animationId = requestAnimationFrame(() => this.animate());
   }
 
-  
+
 
   private drawWaterBackground(): void {
     const canvas = this.canvasRef.nativeElement;

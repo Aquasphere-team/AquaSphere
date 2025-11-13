@@ -10,6 +10,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 var configuration = builder.Configuration;
 
+builder.Services.AddCors(options =>
+    {
+    options.AddPolicy("Allow Frontend",policy =>
+    {
+        policy.WithOrigins("http://localhost:4200")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 builder.Services.AddDbContext<AquaSphereDbContext>(options =>
     options.UseNpgsql(configuration.GetConnectionString("AquaSphereDatabase")));
 
@@ -50,6 +61,8 @@ builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 
 var app = builder.Build();
+app.UseCors("Allow Frontend");
+app.UseRouting();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
