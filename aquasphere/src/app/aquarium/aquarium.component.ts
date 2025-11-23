@@ -394,6 +394,20 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         }
       }
 
+      // check fish if none removed yet
+      if (!removed) {
+        let nearestFishIndex = -1;
+        let nearestFishDist = Infinity;
+        this.fish.forEach((f, i) => {
+          const dist = Math.hypot(f.x - cssX, f.y - cssY);
+          if (dist < nearestFishDist) { nearestFishDist = dist; nearestFishIndex = i; }
+        });
+        if (nearestFishIndex >= 0 && nearestFishDist <= threshold) {
+          this.fish.splice(nearestFishIndex, 1);
+          removed = true;
+        }
+      }
+
       if (removed) {
         // Removed auto-save - use manual save button instead
       }
@@ -671,6 +685,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     try {
       const state = await this.supabaseService.loadAquariumState(this.currentUserId);
       console.log('Loaded state from cloud:', state);
+      console.log('State type:', typeof state);
+      console.log('State keys:', state ? Object.keys(state) : 'null');
+      console.log('State.plants:', state?.plants);
+      console.log('State.fish:', state?.fish);
       if (state) {
         if (state.lightIntensity !== undefined) this.lightIntensity = state.lightIntensity;
         if (Array.isArray(state.particles)) this.particles = state.particles;
@@ -678,6 +696,8 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         if (Array.isArray(state.fish)) this.fish = state.fish;
         if (Array.isArray(state.decorations)) this.decorations = state.decorations;
         console.log('Aquarium state loaded from cloud! 🌊');
+        console.log('Loaded plants count:', this.plants.length);
+        console.log('Loaded fish count:', this.fish.length);
       } else {
         console.log('No saved state found in cloud');
       }

@@ -13,11 +13,12 @@
         </div>
           <!-- profile button -->
           <button class="phone-profile-btn" (click)="openPhoneAuth()">👤</button>
-          <!-- menu button -->
-          <button class="phone-menu-btn" (click)="toggleInScreenMenu()">☰</button>
           <div class="phone-screen">
             <canvas #aquariumCanvas></canvas>
 
+            <!-- Menu button at bottom -->
+            <button class="phone-menu-btn-bottom" (click)="toggleInScreenMenu()">☰</button>
+            
             <!-- In-screen controls (animated): use class binding so CSS transitions apply -->
             <div class="in-screen-controls" [class.open]="inScreenMenu">
               <button class="control-btn feed-btn" (click)="feedFish()">🐟</button>
@@ -113,6 +114,10 @@
                 </div>
               </div>
             </ng-container>
+            <!-- remove mode overlay -->
+            <div class="remove-mode-overlay" *ngIf="removeMode">
+              <div class="remove-mode-indicator">🗑️ Löschmodus aktiv - Tippe auf Objekte zum Entfernen</div>
+            </div>
             <!-- placing indicator -->
             <div id="placing-indicator" class="placing-indicator" [hidden]="!placingPlant && !placingFish && !placingDecoration"></div>
             <!-- placement hint shown while placing -->
