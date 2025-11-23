@@ -42,16 +42,37 @@
                     <button class="close-phone-auth" (click)="closePhoneAuth()">✕</button>
                   </div>
                   <div class="phone-auth-body">
-                    <label class="auth-label">Benutzername</label>
-                    <input class="auth-input" placeholder="Benutzername" [(ngModel)]="authName" />
-                    <label class="auth-label">Passwort</label>
-                    <input class="auth-input" placeholder="Passwort" type="password" [(ngModel)]="authPass" />
+                    <div *ngIf="!currentUser">
+                      <!-- Registration fields -->
+                      <div *ngIf="showRegister">
+                        <label class="auth-label">E-Mail</label>
+                        <input class="auth-input" placeholder="E-Mail" type="email" [(ngModel)]="authEmail" />
+                        <label class="auth-label">Benutzername</label>
+                        <input class="auth-input" placeholder="Benutzername" [(ngModel)]="authName" />
+                        <label class="auth-label">Passwort</label>
+                        <input class="auth-input" placeholder="Passwort" type="password" [(ngModel)]="authPass" />
+                      </div>
+                      
+                      <!-- Login fields -->
+                      <div *ngIf="!showRegister">
+                        <label class="auth-label">Benutzername</label>
+                        <input class="auth-input" placeholder="Benutzername" [(ngModel)]="authName" />
+                        <label class="auth-label">Passwort</label>
+                        <input class="auth-input" placeholder="Passwort" type="password" [(ngModel)]="authPass" />
+                      </div>
+                    </div>
+                    
+                    <div *ngIf="currentUser">
+                      <p>Angemeldet als: <strong>{{currentUser}}</strong></p>
+                    </div>
 
                     <div class="auth-actions-vertical">
-                      <button class="control-btn primary" (click)="register()">Registrieren</button>
-                      <button class="control-btn primary" (click)="login()">Anmelden</button>
+                      <button class="control-btn primary" (click)="register()" *ngIf="!currentUser && showRegister">Registrieren</button>
+                      <button class="control-btn" (click)="showRegister = false" *ngIf="!currentUser && showRegister">Zum Login</button>
+                      <button class="control-btn primary" (click)="login()" *ngIf="!currentUser && !showRegister">Anmelden</button>
+                      <button class="control-btn" (click)="showRegister = true" *ngIf="!currentUser && !showRegister">Zur Registrierung</button>
                       <button class="control-btn" (click)="saveUserState()" *ngIf="currentUser">Speichern</button>
-                      <button class="control-btn" (click)="logout()">Abmelden</button>
+                      <button class="control-btn" (click)="logout()" *ngIf="currentUser">Abmelden</button>
                     </div>
                   </div>
                 </div>

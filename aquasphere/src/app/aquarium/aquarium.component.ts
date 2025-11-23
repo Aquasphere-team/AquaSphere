@@ -1,7 +1,7 @@
 import { Component, ElementRef, OnInit, ViewChild, OnDestroy, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { UserService } from '../../services/userService';
+import { SupabaseService } from '../../services/supabase.service';
 
 @Component({
   selector: 'app-aquarium',
@@ -13,8 +13,7 @@ import { UserService } from '../../services/userService';
 export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('aquariumCanvas', { static: true }) canvasRef!: ElementRef<HTMLCanvasElement>;
 
-
-  constructor(private userService: UserService) {}
+  constructor(private supabaseService: SupabaseService) {}
 
   private ctx!: CanvasRenderingContext2D;
   private particles: any[] = [];
@@ -25,10 +24,13 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   phonePreview = true; // Handy-Version als Standard
   // auth state
   inScreenMenu = false;
+  authEmail = '';
   authName = '';
   authPass = '';
   currentUser: string | null = null;
+  currentUserId: string | null = null;
   inPhoneAuth = false;
+  showRegister = false; // Toggle between login and register forms
   // decoration / plants
   plantTypes = [
     { id: 'fern', name: 'Farn', color: '#1b8a36', defaultScale: 1 },
@@ -104,6 +106,8 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.inPhoneAuth = false;
     this.decorationPaletteVisible = false;
     this.placingPlant = false;
+    // Check if user is already logged in from previous session
+    this.checkExistingSession();
   }
 
   ngAfterViewInit(): void {
@@ -391,7 +395,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       }
 
       if (removed) {
-        this.saveUserState();
+        // Removed auto-save - use manual save button instead
       }
       return;
     }
@@ -406,7 +410,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       this.placingPlant = false;
       this.selectedPlantType = null;
       try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
-      this.saveUserState();
+      // Removed auto-save - use manual save button instead
     } else if (this.placingDecoration && this.selectedDecorationType) {
       const nx = Math.max(0, Math.min(1, cssX / rect.width));
       const ny = Math.max(0, Math.min(1, cssY / rect.height));
@@ -424,13 +428,13 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       this.placingDecoration = false;
       this.selectedDecorationType = null;
       try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
-      this.saveUserState();
+      // Removed auto-save - use manual save button instead
     } else if (this.placingFish && this.selectedFishType) {
       this.addFish(this.selectedFishType, cssX, cssY);
       this.placingFish = false;
       this.selectedFishType = null;
       try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
-      this.saveUserState();
+      // Removed auto-save - use manual save button instead
     }
   }
 
@@ -523,52 +527,101 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.fish.push(fish);
   }
 
-  // --- Authentication (simulated backend via localStorage) ---
-  register(): void {
-    const data: any = {username: this.authName, password: this.authPass};
-    this.userService.register(data);
-    return;
+  // --- Authentication (Supabase cloud backend) ---
+  async checkExistingSession(): Promise<void> {
+    try {
+      const user = await this.supabaseService.getCurrentUser();
+      if (user) {
+        this.currentUser = user.user_metadata['username'] || user.email?.split('@')[0] || 'Benutzer';
+        this.currentUserId = user.id;
+        await this.loadUserState();
+        console.log('Auto-logged in:', this.currentUser);
+      }
+    } catch (e) {
+      console.log('No existing session');
+    }
   }
-  /*
-    if (!this.authName || !this.authPass) return;
-    const usersRaw = localStorage.getItem('aqua_users');
-    const users = usersRaw ? JSON.parse(usersRaw) : {};
-    if (users[this.authName]) {
-      alert('Benutzername bereits vorhanden');
+
+  async register(): Promise<void> {
+    if (!this.authEmail || !this.authName || !this.authPass) {
+      alert('Bitte fülle alle Felder aus');
       return;
     }
-    users[this.authName] = { password: this.authPass };
-    localStorage.setItem('aqua_users', JSON.stringify(users));
-    alert('Registrierung erfolgreich. Du kannst dich nun anmelden.');
-    this.authPass = '';
+    try {
+      const data = await this.supabaseService.signUp(this.authEmail, this.authPass, this.authName);
+      alert('Registrierung erfolgreich! Bitte überprüfe deine E-Mail um dein Konto zu bestätigen.');
+      this.authEmail = '';
+      this.authName = '';
+      this.authPass = '';
+    } catch (e: any) {
+      alert('Registrierung fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'));
+    }
   }
 
-  */
-
-  login(): void {
-    const data: any = {username: this.authName, password: this.authPass};
-    this.userService.login(data);
-    return;
-  }
-   /*
-    if (!this.authName || !this.authPass) return;
-    const usersRaw = localStorage.getItem('aqua_users');
-    const users = usersRaw ? JSON.parse(usersRaw) : {};
-    const u = users[this.authName];
-    if (!u || u.password !== this.authPass) {
-      alert('Anmeldung fehlgeschlagen');
+  async login(): Promise<void> {
+    if (!this.authName || !this.authPass) {
+      alert('Bitte fülle Benutzername und Passwort aus');
       return;
     }
-    this.currentUser = this.authName;
-    this.authPass = '';
-    this.loadUserState();
+    try {
+      console.log('Login attempt for username:', this.authName);
+      
+      // Get email by username
+      const email = await this.supabaseService.getEmailByUsername(this.authName);
+      if (!email) {
+        alert('Benutzername nicht gefunden');
+        this.authPass = ''; // Clear password on error
+        return;
+      }
+      
+      console.log('Found email for username, attempting sign in...');
+      const data = await this.supabaseService.signIn(email, this.authPass);
+      const user = data.user;
+      if (!user) {
+        alert('Anmeldung fehlgeschlagen: Kein Benutzer gefunden');
+        this.authPass = '';
+        return;
+      }
+      
+      console.log('Login successful, user:', user.id);
+      this.currentUser = user.user_metadata['username'] || user.email?.split('@')[0] || 'Benutzer';
+      this.currentUserId = user.id;
+      this.authName = '';
+      this.authPass = '';
+      await this.loadUserState();
+      this.closePhoneAuth();
+    } catch (e: any) {
+      console.error('Login error:', e);
+      alert('Anmeldung fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'));
+      this.authPass = ''; // Clear password on error
+    }
   }
 
-    */
-
-  logout(): void {
+  async logout(): Promise<void> {
+    console.log('Logging out...');
+    try {
+      await this.supabaseService.signOut();
+      console.log('Supabase signOut successful');
+    } catch (e: any) {
+      console.error('Logout error:', e);
+    }
+    
+    // Always clear local state regardless of Supabase result
     this.currentUser = null;
-    this.userService.logout();
+    this.currentUserId = null;
+    this.authName = '';
+    this.authPass = '';
+    this.authEmail = '';
+    
+    // Reset aquarium to default state
+    this.lightIntensity = 1;
+    this.particles = [];
+    this.plants = [];
+    this.fish = [];
+    this.decorations = [];
+    this.createWaterParticles();
+    
+    console.log('Local state cleared, logout complete');
   }
 
   openPhoneAuth(): void {
@@ -585,32 +638,51 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.inPhoneAuth = false;
   }
 
-  saveUserState(): void {
-    if (!this.currentUser) return;
-    const state = {
-      lightIntensity: this.lightIntensity,
-      particles: this.particles,
-      plants: this.plants,
-      fish: this.fish
-      ,decorations: this.decorations
-    };
-    localStorage.setItem(`aqua_user_${this.currentUser}`, JSON.stringify(state));
-    window.alert('Dein Aquarium wurde gespeichert.');
+  async saveUserState(): Promise<void> {
+    if (!this.currentUserId) {
+      alert('Du musst angemeldet sein um zu speichern.');
+      return;
+    }
+    console.log('Saving user state for user:', this.currentUserId);
+    try {
+      const state = {
+        lightIntensity: this.lightIntensity,
+        particles: this.particles,
+        plants: this.plants,
+        fish: this.fish,
+        decorations: this.decorations
+      };
+      console.log('State to save:', state);
+      await this.supabaseService.saveAquariumState(this.currentUserId, state);
+      console.log('Save successful!');
+      alert('Dein Aquarium wurde in der Cloud gespeichert! 🐠');
+    } catch (e: any) {
+      console.error('Save error:', e);
+      alert('Speichern fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'));
+    }
   }
 
-  loadUserState(): void {
-    if (!this.currentUser) return;
-    const raw = localStorage.getItem(`aqua_user_${this.currentUser}`);
-    if (!raw) return;
+  async loadUserState(): Promise<void> {
+    if (!this.currentUserId) {
+      console.log('loadUserState: No currentUserId, skipping');
+      return;
+    }
+    console.log('Loading user state for user:', this.currentUserId);
     try {
-      const state = JSON.parse(raw);
-      if (state.lightIntensity) this.lightIntensity = state.lightIntensity;
-      if (Array.isArray(state.particles)) this.particles = state.particles;
-      if (Array.isArray(state.plants)) this.plants = state.plants;
-      if (Array.isArray(state.fish)) this.fish = state.fish;
-      if (Array.isArray(state.decorations)) this.decorations = state.decorations;
-    } catch (e) {
-      console.warn('Invalid user state');
+      const state = await this.supabaseService.loadAquariumState(this.currentUserId);
+      console.log('Loaded state from cloud:', state);
+      if (state) {
+        if (state.lightIntensity !== undefined) this.lightIntensity = state.lightIntensity;
+        if (Array.isArray(state.particles)) this.particles = state.particles;
+        if (Array.isArray(state.plants)) this.plants = state.plants;
+        if (Array.isArray(state.fish)) this.fish = state.fish;
+        if (Array.isArray(state.decorations)) this.decorations = state.decorations;
+        console.log('Aquarium state loaded from cloud! 🌊');
+      } else {
+        console.log('No saved state found in cloud');
+      }
+    } catch (e: any) {
+      console.warn('Failed to load user state:', e.message);
     }
   }
 
@@ -1000,7 +1072,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.animationId = requestAnimationFrame(() => this.animate());
   }
 
-
+  
 
   private drawWaterBackground(): void {
     const canvas = this.canvasRef.nativeElement;
