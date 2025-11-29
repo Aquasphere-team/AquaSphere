@@ -49,6 +49,18 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   plants: PlacedDecoration[] = [];
   fish: FishInstance[] = [];
 
+  // points system
+  points = 50; // starting points
+  readonly BASE_FISH_COST = 20;  // tier 1 cost
+  readonly FISH_COST_MULTIPLIER = 2; // each tier costs 2x more (20, 40, 80, 160)
+  readonly PLANT_COST = 8;  // reduced slightly
+  readonly ROCK_COST = 12;  // reduced slightly
+  readonly CORAL_COST = 15; // reduced slightly
+  readonly FEED_COST = 2;
+  readonly POINTS_PER_FISH_INTERVAL = 10000; // 10 seconds
+  readonly BASE_POINTS_PER_FISH = 1; // tier 1 generates 1 point
+  readonly POINTS_MULTIPLIER = 2; // each tier generates 2x more points (1, 2, 4, 8)
+
   // UI helpers
   previews: Record<string, string> = {};
   placingDecoration = false;
@@ -57,6 +69,39 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   // expose fishTypes from FishService so the template can iterate over them
   get fishTypes(): FishType[] {
     return this.fishService.fishTypes;
+  }
+
+  // get cost for decoration type
+  getDecorationCost(decorationId: string): number {
+    const decoration = this.decorationService.decorationTypes.find(d => d.id === decorationId);
+    if (!decoration) return 0;
+    switch (decoration.category) {
+      case 'plants': return this.PLANT_COST;
+      case 'rocks': return this.ROCK_COST;
+      case 'coral': return this.CORAL_COST;
+      default: return 10;
+    }
+  }
+
+  // get cost for fish by tier
+  getFishCost(fishId: string): number {
+    const fishType = this.fishService.fishTypes.find(f => f.id === fishId);
+    if (!fishType) return this.BASE_FISH_COST;
+    return Math.round(this.BASE_FISH_COST * Math.pow(this.FISH_COST_MULTIPLIER, fishType.tier - 1));
+  }
+
+  // get points generated per interval by fish tier
+  getFishPointsPerInterval(tier: number): number {
+    return this.BASE_POINTS_PER_FISH * Math.pow(this.POINTS_MULTIPLIER, tier - 1);
+  }
+
+  showMessage(text: string, duration = 2000): void {
+    this.messageText = text;
+    this.messageVisible = true;
+    if (this.messageTimeout) clearTimeout(this.messageTimeout);
+    this.messageTimeout = window.setTimeout(() => {
+      this.messageVisible = false;
+    }, duration);
   }
 
   // removal mode (click to remove nearest decoration/plant)
@@ -68,6 +113,11 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   selectedPlantType: string | null = null;
   placingFish = false;
   selectedFishType: string | null = null;
+
+  // message display
+  messageText = '';
+  messageVisible = false;
+  private messageTimeout?: number;
 
   ngOnInit(): void {
     // ensure transient UI flags are reset on start (do this before attaching listeners)
@@ -256,7 +306,17 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
   debugAddFish(): void { const randomX = Math.random() * 600 + 100; const randomY = Math.random() * 400 + 100; this.addFish('goldfish', randomX, randomY); }
 
-  cancelPlacing(): void { this.placingPlant = false; this.selectedPlantType = null; this.placingFish = false; this.selectedFishType = null; try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {} }
+  cancelPlacing(): void { 
+    this.placingPlant = false; 
+    this.selectedPlantType = null; 
+    this.placingFish = false; 
+    this.selectedFishType = null; 
+    this.placingDecoration = false;
+    this.selectedDecorationType = null;
+    this.decorationPaletteVisible = false;
+    this.fishPaletteVisible = false;
+    try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {} 
+  }
 
   private addFish(type: string, x?: number, y?: number): void {
     const canvas = this.canvasRef.nativeElement;
@@ -324,16 +384,28 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     if (this.placingPlant && this.selectedPlantType) {
+      // Check if enough points
+      if (this.points < this.PLANT_COST) {
+        this.showMessage(`Nicht genug Punkte! Pflanze kostet ${this.PLANT_COST} Punkte.`);
+        return;
+      }
       const nx = Math.max(0, Math.min(1, cssX / rect.width));
       const ny = Math.max(0, Math.min(1, cssY / rect.height));
       // Use plant type defaultScale so placed plants match palette size
       const plantDef = this.decorationService.plantTypes.find(pt => pt.id === this.selectedPlantType as string) as any;
       const scale = plantDef && plantDef.defaultScale ? plantDef.defaultScale : 1;
       this.plants.push({ type: this.selectedPlantType, nx, ny, scale });
+      this.points -= this.PLANT_COST;
       this.placingPlant = false;
       this.selectedPlantType = null;
       try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
     } else if (this.placingDecoration && this.selectedDecorationType) {
+      // Check if enough points
+      const cost = this.getDecorationCost(this.selectedDecorationType);
+      if (this.points < cost) {
+        this.showMessage(`Nicht genug Punkte! Dekoration kostet ${cost} Punkte.`);
+        return;
+      }
       const nx = Math.max(0, Math.min(1, cssX / rect.width));
       const ny = Math.max(0, Math.min(1, cssY / rect.height));
       // if the selected decoration is actually a plant id, keep using plants array for compatibility
@@ -347,11 +419,19 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         const scale = decType && decType.defaultScale ? decType.defaultScale : 1;
         this.decorations.push({ type: this.selectedDecorationType as string, nx, ny, scale: scale });
       }
+      this.points -= cost;
       this.placingDecoration = false;
       this.selectedDecorationType = null;
       try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
     } else if (this.placingFish && this.selectedFishType) {
+      // Check if enough points
+      const fishCost = this.getFishCost(this.selectedFishType);
+      if (this.points < fishCost) {
+        this.showMessage(`Nicht genug Punkte! Fisch kostet ${fishCost} Punkte.`);
+        return;
+      }
       this.addFish(this.selectedFishType, cssX, cssY);
+      this.points -= fishCost;
       this.placingFish = false;
       this.selectedFishType = null;
       try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
@@ -523,7 +603,8 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         particles: this.particleService.getParticles(),
         plants: this.plants,
         fish: this.fish,
-        decorations: this.decorations
+        decorations: this.decorations,
+        points: this.points
       };
       console.log('State to save:', state);
       await this.supabaseService.saveAquariumState(this.currentUserId, state);
@@ -554,6 +635,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
           try { this.fishService.fish = this.fish; } catch (e) {}
         }
         if (Array.isArray(state.decorations)) this.decorations = state.decorations;
+        if (state.points !== undefined) this.points = state.points;
         console.log('Aquarium state loaded from cloud! 🌊');
       } else {
         console.log('No saved state found in cloud');
@@ -593,6 +675,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     // update and draw fish
     this.updateFish();
     this.canvasService.drawFish(this.fish);
+    
+    // Passive point generation from fish
+    this.generatePointsFromFish();
+    
     // draw surface waves and light via service
     this.canvasService.drawSurfaceWaves(this.waveOffset);
     this.canvasService.drawLightEffect(this.lightIntensity);
@@ -601,14 +687,49 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.animationId = requestAnimationFrame(() => this.animate());
   }
 
+  private generatePointsFromFish(): void {
+    const now = Date.now();
+    this.fish.forEach(fish => {
+      // Skip dead fish
+      if (fish.isDead) return;
+      
+      // Initialize timestamp if not set
+      if (!fish.lastPointsGenerated) {
+        fish.lastPointsGenerated = now;
+        return;
+      }
+      
+      // Check if interval has passed
+      if (now - fish.lastPointsGenerated >= this.POINTS_PER_FISH_INTERVAL) {
+        // Get fish tier to calculate points
+        const fishType = this.fishService.fishTypes.find(f => f.id === fish.type);
+        const tier = fishType?.tier || 1;
+        const pointsToAdd = this.getFishPointsPerInterval(tier);
+        
+        this.points += pointsToAdd;
+        fish.lastPointsGenerated = now;
+        
+        // Visual feedback: show +points above fish (optional, can be implemented later)
+        // For now, just log it
+        console.log(`+${pointsToAdd} Punkte von ${fishType?.name || 'Fisch'}!`);
+      }
+    });
+  }
+
 
 
   // Button Event Handlers
   feedFish(): void {
+    // Check if enough points
+    if (this.points < this.FEED_COST) {
+      this.showMessage(`Nicht genug Punkte! Füttern kostet ${this.FEED_COST} Punkte.`);
+      return;
+    }
     console.log('🐟 Fische werden gefüttert!');
 
     // delegate to particleService
     this.particleService.addFeedBurst(10, 50, 750);
+    this.points -= this.FEED_COST;
   }
 
   toggleLight(): void {
