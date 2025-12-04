@@ -4,11 +4,11 @@ import { FishType, FishInstance, Particle } from '../models/fish.model';
 @Injectable({ providedIn: 'root' })
 export class FishService {
   public fishTypes: FishType[] = [
-    { id: 'goldfish', name: 'Goldfisch', color: '#FFD700', size: 25, speed: 1.2 },
-    { id: 'bluefish', name: 'Blauer Fisch', color: '#4169E1', size: 20, speed: 1.8 },
-    { id: 'redfish', name: 'Roter Fisch', color: '#DC143C', size: 18, speed: 2.0 },
-    { id: 'greenfish', name: 'Grüner Fisch', color: '#32CD32', size: 22, speed: 1.5 },
-    { id: 'angelfish', name: 'Kaiserfisch', color: '#FF69B4', size: 30, speed: 0.8 }
+    { id: 'goldfish', name: 'Goldfisch', color: '#FFD700', size: 25, speed: 1.2, tier: 1 },
+    { id: 'bluefish', name: 'Blauer Fisch', color: '#4169E1', size: 20, speed: 1.8, tier: 2 },
+    { id: 'redfish', name: 'Roter Fisch', color: '#DC143C', size: 18, speed: 2.0, tier: 3 },
+    { id: 'greenfish', name: 'Grüner Fisch', color: '#32CD32', size: 22, speed: 1.5, tier: 2 },
+    { id: 'angelfish', name: 'Kaiserfisch', color: '#FF69B4', size: 30, speed: 0.8, tier: 4 }
   ];
 
   public fish: FishInstance[] = [];

@@ -13,6 +13,10 @@
         </div>
           <!-- profile button -->
           <button class="phone-profile-btn" (click)="openPhoneAuth()">👤</button>
+          
+          <!-- points display -->
+          <div class="points-display">🪙 {{ points }} Punkte</div>
+          
           <div class="phone-screen">
             <canvas #aquariumCanvas></canvas>
 
@@ -21,12 +25,12 @@
             
             <!-- In-screen controls (animated): use class binding so CSS transitions apply -->
             <div class="in-screen-controls" [class.open]="inScreenMenu">
-              <button class="control-btn feed-btn" (click)="feedFish()">🐟</button>
-              <button class="control-btn light-btn" (click)="toggleLight()">💡</button>
-              <button class="control-btn clean-btn" (click)="cleanAquarium()">🧽</button>
-              <button class="control-btn deco-btn" (click)="toggleDecorationPalette()">🪴</button>
-              <button class="control-btn fish-btn" (click)="toggleFishPalette()">🐠</button>
-              <button class="control-btn remove-btn" [class.active]="removeMode" (click)="toggleRemoveMode()">🗑️</button>
+              <button class="control-btn feed-btn" (click)="feedFish()" [title]="'Füttern (' + FEED_COST + ' Punkte)'">🐟</button>
+              <button class="control-btn light-btn" (click)="toggleLight()" title="Licht umschalten (kostenlos)">💡</button>
+              <button class="control-btn clean-btn" (click)="cleanAquarium()" title="Aquarium reinigen (kostenlos)">🧽</button>
+              <button class="control-btn deco-btn" (click)="toggleDecorationPalette()" title="Dekorationen platzieren">🪴</button>
+              <button class="control-btn fish-btn" (click)="toggleFishPalette()" title="Fisch platzieren">🐠</button>
+              <button class="control-btn remove-btn" [class.active]="removeMode" (click)="toggleRemoveMode()" title="Löschmodus (kostenlos)">🗑️</button>
             </div>
 
             <!-- Exit button entfernt - nur noch Handy-Version -->
@@ -92,6 +96,7 @@
                     <img class="palette-thumb" [src]="previews[p.id]" *ngIf="previews[p.id]" alt="{{p.name}}" />
                     <div class="palette-swatch" [style.background]="p.color" *ngIf="!previews[p.id]"></div>
                     <div class="palette-label">{{p.name}}</div>
+                    <div class="palette-cost">🪙 {{getDecorationCost(p.id)}}</div>
                   </button>
                 </div>
                 <div class="palette-actions">
@@ -107,10 +112,11 @@
                   <button *ngFor="let f of fishTypes" class="palette-item" (click)="selectFishType(f.id, 'phone')">
                     <div class="palette-swatch" [style.background]="f.color"></div>
                     <div class="palette-label">{{f.name}}</div>
+                    <div class="palette-cost">🪙 {{getFishCost(f.id)}}</div>
                   </button>
                 </div>
                 <div class="palette-actions">
-                  <button class="control-btn" (click)="cancelFishPlacing()">Abbrechen</button>
+                  <button class="control-btn" (click)="cancelPlacing()">Abbrechen</button>
                 </div>
               </div>
             </ng-container>
@@ -118,6 +124,12 @@
             <div class="remove-mode-overlay" *ngIf="removeMode">
               <div class="remove-mode-indicator">🗑️ Löschmodus aktiv - Tippe auf Objekte zum Entfernen</div>
             </div>
+            
+            <!-- message overlay -->
+            <div class="message-overlay" *ngIf="messageVisible">
+              <div class="message-box">{{ messageText }}</div>
+            </div>
+            
             <!-- placing indicator -->
             <div id="placing-indicator" class="placing-indicator" [hidden]="!placingPlant && !placingFish && !placingDecoration"></div>
             <!-- placement hint shown while placing -->
