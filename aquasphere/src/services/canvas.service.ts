@@ -150,64 +150,109 @@ export class CanvasService {
     if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx; const canvas = this.canvas;
 
-    particles.forEach((particle, index) => {
-      // simple movement + slight wobble
-      if ((particle as any).isFeed) {
-        // feed particles fall down and then settle on the bottom
-        if (!(particle as any).settled) {
-          particle.x += particle.speedX + Math.sin(Date.now() * 0.001 + index) * 0.3;
-          particle.y += particle.speedY + Math.abs(Math.cos(Date.now() * 0.0015 + index)) * 0.6;
+    // simple delta time to age short-lived particles
+    const now = Date.now();
+    (this as any)._lastParticleTick = (this as any)._lastParticleTick || now;
+    const dt = Math.max(16, Math.min(100, now - (this as any)._lastParticleTick));
+    (this as any)._lastParticleTick = now;
+
+    // iterate backwards to allow splice while iterating
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const particle = particles[i] as any;
+
+      // Age-based removal
+      if (typeof particle.life === 'number') {
+        particle.life -= dt;
+        if (particle.life <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+      }
+
+      // Movement update (lighter math for cheap particles)
+      if (particle.isFeed) {
+        if (!particle.settled) {
+          particle.x += particle.speedX + Math.sin(now * 0.001) * 0.2;
+          particle.y += particle.speedY + Math.abs(Math.cos(now * 0.0015)) * 0.4;
         } else {
-          // when settled, slowly reduce horizontal movement and keep on bottom
           particle.x += particle.speedX * 0.05;
           particle.y = Math.max(particle.y, canvas.height - 6 - (particle.size || 2));
           particle.speedX *= 0.92;
           particle.speedY = 0;
         }
+      } else if (particle.isCleanFeedback) {
+        // quick, small movement
+        particle.x += particle.speedX;
+        particle.y += particle.speedY;
       } else {
-        particle.x += particle.speedX + Math.sin(Date.now() * 0.001 + index) * 0.5;
-        particle.y += particle.speedY + Math.cos(Date.now() * 0.0015 + index) * 0.3;
+        particle.x += particle.speedX + Math.sin(now * 0.001) * 0.2;
+        particle.y += particle.speedY + Math.cos(now * 0.0015) * 0.15;
       }
 
-      // keep particles inside horizontal bounds
+      // bounds
       if (particle.x < 0) { particle.x = 0; particle.speedX = Math.abs(particle.speedX) * 0.3; }
       if (particle.x > canvas.width) { particle.x = canvas.width; particle.speedX = -Math.abs(particle.speedX) * 0.3; }
 
-      // if feed particle reached bottom, mark as settled and stop vertical bounce
-      if ((particle as any).isFeed && !(particle as any).settled) {
+      // If feed particle hits bottom
+      if (particle.isFeed && !particle.settled) {
         const bottomY = canvas.height - 6 - (particle.size || 2);
         if (particle.y >= bottomY) {
           particle.y = bottomY;
-          (particle as any).settled = true;
+          particle.settled = true;
           particle.speedX *= 0.4;
           particle.speedY = 0;
         }
       }
 
-      ctx.globalAlpha = particle.opacity;
+      // Rendering: prefer cheap fill for most particles to reduce gradients
+      ctx.globalAlpha = Math.max(0.15, Math.min(1, particle.opacity || 0.6));
+      if (particle.isCleanFeedback) {
+        ctx.fillStyle = particle.color || 'rgba(255,255,255,0.9)';
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, Math.max(1, particle.size || 1.2), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        continue;
+      }
 
-      const glowGradient = ctx.createRadialGradient(
-        particle.x, particle.y, 0,
-        particle.x, particle.y, particle.size * 3
-      );
-      glowGradient.addColorStop(0, particle.color);
-      glowGradient.addColorStop(0.4, particle.color.replace('0.4)', '0.1)'));
-      glowGradient.addColorStop(1, 'transparent');
+      if (particle.size > 3 && particle.isFeed) {
+        // keep glow for larger feed particles
+        const glowGradient = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, particle.size * 3);
+        glowGradient.addColorStop(0, particle.color);
+        glowGradient.addColorStop(0.6, particle.color);
+        glowGradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = glowGradient;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, particle.size * 3, 0, Math.PI * 2);
+        ctx.fill();
 
-      ctx.fillStyle = glowGradient;
+        ctx.beginPath();
+        ctx.fillStyle = particle.color;
+        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        continue;
+      }
+
+      // cheap bubble / dust render
       ctx.beginPath();
-      ctx.arc(particle.x, particle.y, particle.size * 3, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-      ctx.fillStyle = particle.color;
+      ctx.fillStyle = particle.color || 'rgba(200,200,200,0.6)';
+      ctx.arc(particle.x, particle.y, Math.max(0.8, particle.size || 1), 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
+    }
 
-      particle.opacity += Math.sin(Date.now() * 0.002 + index) * 0.01;
-      particle.opacity = Math.max(0.2, Math.min(0.8, particle.opacity));
-    });
+    // cap particle array size to avoid runaway memory/cpu
+    const MAX_PARTICLES = 400;
+    if (particles.length > MAX_PARTICLES) {
+      // remove oldest non-feed particles first
+      let removed = 0;
+      for (let i = 0; i < particles.length && removed < (particles.length - MAX_PARTICLES); i++) {
+        if (!particles[i].isFeed) { particles.splice(i, 1); i--; removed++; }
+      }
+      // if still too many, truncate
+      if (particles.length > MAX_PARTICLES) particles.length = MAX_PARTICLES;
+    }
   }
 
   drawDecorations(decorations: PlacedDecoration[], decorationTypes: DecorationType[], waveOffset: number): void {
@@ -435,6 +480,50 @@ export class CanvasService {
           ctx.fill();
         }
       }
+      ctx.restore();
+    });
+  }
+
+  // --- Dirt rendering helpers ---
+  drawDirtOverlay(dirtLevel: number): void {
+    if (!this.ctx || !this.canvas) return;
+    const ctx = this.ctx; const canvas = this.canvas;
+    const alpha = Math.min(0.8, dirtLevel / 150);
+    ctx.save();
+    // subtle color shift to slightly green/brown
+    ctx.fillStyle = `rgba(30, 40, 20, ${alpha})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // optional light vignette depending on dirt
+    if (dirtLevel > 30) {
+      const g = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 0, canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) / 1.1);
+      g.addColorStop(0, `rgba(0,0,0,0)`);
+      g.addColorStop(1, `rgba(0,0,0,${Math.min(0.35, (dirtLevel - 30) / 200)})`);
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = g as any;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+  }
+
+  drawStains(stains: Array<{id:string,x:number,y:number,radius:number,amount:number}>) {
+    if (!this.ctx || !this.canvas) return;
+    const ctx = this.ctx; const canvas = this.canvas;
+    stains.forEach(s => {
+      const px = s.x * canvas.getBoundingClientRect().width;
+      const py = s.y * canvas.getBoundingClientRect().height;
+      const r = Math.max(4, s.radius);
+      const g = ctx.createRadialGradient(px, py, 0, px, py, r * 1.6);
+      const innerAlpha = Math.max(0.08, Math.min(0.9, s.amount));
+      g.addColorStop(0, `rgba(80,60,40,${innerAlpha})`);
+      g.addColorStop(0.4, `rgba(80,60,40,${Math.max(0, innerAlpha - 0.15)})`);
+      g.addColorStop(1, 'rgba(80,60,40,0)');
+      ctx.save();
+      ctx.globalCompositeOperation = 'overlay';
+      ctx.fillStyle = g as any;
+      ctx.beginPath();
+      ctx.arc(px, py, r * 1.2, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     });
   }

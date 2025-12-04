@@ -35,8 +35,7 @@ export class ParticleService {
           speedY: Math.random() * 3 + 2,
           opacity: 0.9,
           color: 'rgba(255,165,0,0.8)',
-          isFeed: true,
-          life: 200
+          isFeed: true
         };
         this.particles.push(p);
         // set optional flag after creation to avoid TS excess property checks
@@ -45,19 +44,43 @@ export class ParticleService {
     }
   }
 
+  // Spawn small short-lived cleaning feedback particles at pixel coords
+  spawnCleaningParticles(px: number, py: number, count = 2) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 0.6 + 0.2;
+      // use a temporary any object to avoid strict object-literal checks
+      const p: any = {
+        x: px + Math.cos(angle) * (Math.random() * 6),
+        y: py + Math.sin(angle) * (Math.random() * 6),
+        size: Math.random() * 2 + 0.6,
+        speedX: Math.cos(angle) * speed,
+        speedY: Math.sin(angle) * speed * 0.6,
+        opacity: 0.9,
+        color: 'rgba(255,255,255,0.9)',
+        // short-lived cleaning feedback: use `life` to mark as feedback
+        life: 300 // ms
+      };
+      this.particles.push(p as Particle);
+    }
+  }
+
   cleanAndPopulate(count = 8, width = 800, height = 600): void {
     // remove feed particles
     this.particles = this.particles.filter(p => !p.isFeed);
 
-    for (let i = 0; i < count; i++) {
+    // spawn some gentle background particles (reduced count for performance)
+    const spawn = Math.max(2, Math.min(count, 6));
+    for (let i = 0; i < spawn; i++) {
       this.particles.push({
         x: Math.random() * width,
         y: Math.random() * height,
         size: Math.random() * 2 + 0.8,
-        speedX: (Math.random() - 0.5) * 0.5,
-        speedY: (Math.random() - 0.5) * 0.3,
-        opacity: Math.random() * 0.4 + 0.2,
-        color: this.canvasService.getRandomWaterColor()
+        speedX: (Math.random() - 0.5) * 0.3,
+        speedY: (Math.random() - 0.5) * 0.2,
+        opacity: Math.random() * 0.3 + 0.1,
+        color: this.canvasService.getRandomWaterColor(),
+        life: 6000
       });
     }
   }

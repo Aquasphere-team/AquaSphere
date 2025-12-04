@@ -43,4 +43,5 @@ export interface Particle {
   isFeed?: boolean;
   life?: number;
   settled?: boolean; // when true, feed particle rests on bottom
+  isCleanFeedback?: boolean; // short-lived visual particles from cleaning action
 }

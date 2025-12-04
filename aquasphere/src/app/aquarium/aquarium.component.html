@@ -13,28 +13,31 @@
         </div>
           <!-- profile button -->
           <button class="phone-profile-btn" (click)="openPhoneAuth()">👤</button>
-          
+
           <!-- points display -->
           <div class="points-display">🪙 {{ points }} Punkte</div>
-          
+
           <div class="phone-screen">
             <canvas #aquariumCanvas></canvas>
 
+            <!-- sponge cursor shown when brush is active -->
+            <div id="sponge-cursor" *ngIf="brushActive" [style.left.px]="spongeX" [style.top.px]="spongeY" style="position:absolute;pointer-events:none;font-size:28px;transform:translate(-50%,-50%);">🧽</div>
+
             <!-- Menu button at bottom -->
             <button class="phone-menu-btn-bottom" (click)="toggleInScreenMenu()">☰</button>
-            
+
             <!-- In-screen controls (animated): use class binding so CSS transitions apply -->
             <div class="in-screen-controls" [class.open]="inScreenMenu">
               <button class="control-btn feed-btn" (click)="feedFish()" [title]="'Füttern (' + FEED_COST + ' Punkte)'">🐟</button>
               <button class="control-btn light-btn" (click)="toggleLight()" title="Licht umschalten (kostenlos)">💡</button>
-              <button class="control-btn clean-btn" (click)="cleanAquarium()" title="Aquarium reinigen (kostenlos)">🧽</button>
+              <button class="control-btn clean-btn" (click)="toggleBrush()" title="Reinigungsmodus (Bürste)">🧽</button>
               <button class="control-btn deco-btn" (click)="toggleDecorationPalette()" title="Dekorationen platzieren">🪴</button>
               <button class="control-btn fish-btn" (click)="toggleFishPalette()" title="Fisch platzieren">🐠</button>
               <button class="control-btn remove-btn" [class.active]="removeMode" (click)="toggleRemoveMode()" title="Löschmodus (kostenlos)">🗑️</button>
             </div>
 
             <!-- Exit button entfernt - nur noch Handy-Version -->
-          
+
             <!-- in-phone auth overlay (rendered only when requested) -->
             <ng-container *ngIf="inPhoneAuth">
               <!-- clicking the overlay backdrop closes the auth overlay -->
@@ -57,7 +60,7 @@
                         <label class="auth-label">Passwort</label>
                         <input class="auth-input" placeholder="Passwort" type="password" [(ngModel)]="authPass" />
                       </div>
-                      
+
                       <!-- Login fields -->
                       <div *ngIf="!showRegister">
                         <label class="auth-label">Benutzername</label>
@@ -66,7 +69,7 @@
                         <input class="auth-input" placeholder="Passwort" type="password" [(ngModel)]="authPass" />
                       </div>
                     </div>
-                    
+
                     <div *ngIf="currentUser">
                       <p>Angemeldet als: <strong>{{currentUser}}</strong></p>
                     </div>
@@ -104,7 +107,7 @@
                 </div>
               </div>
             </ng-container>
-            
+
             <!-- Fish palette - removed from DOM when not visible -->
             <ng-container *ngIf="fishPaletteVisible">
               <div class="fish-palette decoration-palette" (click)="$event.stopPropagation()">
@@ -124,12 +127,12 @@
             <div class="remove-mode-overlay" *ngIf="removeMode">
               <div class="remove-mode-indicator">🗑️ Löschmodus aktiv - Tippe auf Objekte zum Entfernen</div>
             </div>
-            
+
             <!-- message overlay -->
             <div class="message-overlay" *ngIf="messageVisible">
               <div class="message-box">{{ messageText }}</div>
             </div>
-            
+
             <!-- placing indicator -->
             <div id="placing-indicator" class="placing-indicator" [hidden]="!placingPlant && !placingFish && !placingDecoration"></div>
             <!-- placement hint shown while placing -->
@@ -144,7 +147,7 @@
       </div>
       <div class="aquarium-glass"></div>
       <div class="aquarium-frame"></div>
-      
+
       <!-- CSS Bubble-Animationen -->
       <div class="water-effects">
         <div class="bubble bubble-1"></div>
@@ -154,7 +157,7 @@
         <div class="bubble bubble-5"></div>
         <div class="bubble bubble-6"></div>
       </div>
-      
+
       <!-- Lichtstrahl-Effekte -->
       <div class="light-rays">
         <div class="ray ray-1"></div>
@@ -162,7 +165,7 @@
         <div class="ray ray-3"></div>
       </div>
     </div>
-    
+
     <!-- Desktop-Steuerungen entfernt - nur noch Handy-Interface -->
   </main>
 

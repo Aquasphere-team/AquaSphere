@@ -8,6 +8,7 @@ import { FishInstance, FishType } from '../../models/fish.model';
 import { PlacedDecoration } from '../../models/decoration.model';
 import { CanvasService } from '../../services/canvas.service';
 import { ParticleService } from '../../services/particle.service';
+import { DirtService } from '../../services/dirt.service';
 
 @Component({
   selector: 'app-aquarium',
@@ -25,6 +26,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     private decorationService: DecorationService,
     private canvasService: CanvasService
     , private particleService: ParticleService
+    , private dirtService: DirtService
   ) {}
 
   // state
@@ -48,6 +50,11 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   decorations: PlacedDecoration[] = [];
   plants: PlacedDecoration[] = [];
   fish: FishInstance[] = [];
+
+  // dirt state (Wassertrübung + sichtbare Glasflecken)
+  dirtLevel = 0; // 0..100
+  dirtLastUpdated: number = Date.now();
+  dirtStains: Array<{ id: string; x: number; y: number; radius: number; amount: number; createdAt?: number }> = [];
 
   // points system
   points = 50; // starting points
@@ -119,6 +126,21 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   messageVisible = false;
   private messageTimeout?: number;
 
+  // brush state
+  brushActive = false;
+  brushRadiusPx = 20;
+  private lastBrushTime = 0;
+  private isBrushing = false;
+  // throttle brush spawn to avoid too many particles
+  private lastSpawnFeedback = 0;
+
+  // sponge cursor position (pixels)
+  spongeX = 0;
+  spongeY = 0;
+
+  // dirt subscription (for future use)
+  private dirtSubscription: any = null;
+
   ngOnInit(): void {
     // ensure transient UI flags are reset on start (do this before attaching listeners)
     this.inPhoneAuth = false;
@@ -141,11 +163,22 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       cancelAnimationFrame(this.animationId);
     }
     try {
-      // remove canvas click listener if attached
+      // remove canvas listeners
+      const canvas = this.canvasRef?.nativeElement;
+      try { canvas?.removeEventListener('pointerdown', this.onCanvasPointerDown as EventListener); } catch {}
+      try { canvas?.removeEventListener('pointermove', this.onCanvasPointerMove as EventListener); } catch {}
+      try { canvas?.removeEventListener('pointerup', this.onCanvasPointerUp as EventListener); } catch {}
+      try { canvas?.removeEventListener('pointercancel', this.onCanvasPointerUp as EventListener); } catch {}
       try { this.canvasRef?.nativeElement?.removeEventListener('pointerup', this.canvasClickHandler as EventListener); } catch {}
     } catch (e) {
       // ignore
     }
+
+    try {
+      if (this.dirtSubscription && typeof this.dirtSubscription.unsubscribe === 'function') this.dirtSubscription.unsubscribe();
+    } catch (e) {}
+
+    try { this.dirtService.stop(); } catch (e) {}
   }
 
   private createStarterFish(): void {
@@ -263,6 +296,23 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     // attach click handler
     try { canvas.addEventListener('pointerup', this.canvasClickHandler as EventListener); } catch {}
 
+    // attach brush pointer handlers
+    try {
+      canvas.addEventListener('pointerdown', this.onCanvasPointerDown as EventListener);
+      canvas.addEventListener('pointermove', this.onCanvasPointerMove as EventListener);
+      canvas.addEventListener('pointerup', this.onCanvasPointerUp as EventListener);
+      canvas.addEventListener('pointercancel', this.onCanvasPointerUp as EventListener);
+    } catch (e) {}
+
+    // Subscribe to dirt state updates to update local fields and trigger overlay rendering
+    try {
+      this.dirtSubscription = this.dirtService.state$.subscribe(s => {
+        this.dirtLevel = s.dirtLevel;
+        this.dirtLastUpdated = s.dirtLastUpdated;
+        this.dirtStains = s.dirtStains;
+      });
+    } catch (e) {}
+
     // Add resize handler
     window.addEventListener('resize', this.handleResize);
     setTimeout(() => this.handleResize(), 100);
@@ -306,16 +356,16 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
   debugAddFish(): void { const randomX = Math.random() * 600 + 100; const randomY = Math.random() * 400 + 100; this.addFish('goldfish', randomX, randomY); }
 
-  cancelPlacing(): void { 
-    this.placingPlant = false; 
-    this.selectedPlantType = null; 
-    this.placingFish = false; 
-    this.selectedFishType = null; 
+  cancelPlacing(): void {
+    this.placingPlant = false;
+    this.selectedPlantType = null;
+    this.placingFish = false;
+    this.selectedFishType = null;
     this.placingDecoration = false;
     this.selectedDecorationType = null;
     this.decorationPaletteVisible = false;
     this.fishPaletteVisible = false;
-    try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {} 
+    try { window.removeEventListener('pointermove', this.mouseMoveHandler as EventListener); } catch {}
   }
 
   private addFish(type: string, x?: number, y?: number): void {
@@ -604,7 +654,11 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         plants: this.plants,
         fish: this.fish,
         decorations: this.decorations,
-        points: this.points
+        points: this.points,
+        // persist dirt state as part of the aquarium JSON
+        dirtLevel: this.dirtLevel,
+        dirtLastUpdated: this.dirtLastUpdated,
+        dirtStains: this.dirtStains
       };
       console.log('State to save:', state);
       await this.supabaseService.saveAquariumState(this.currentUserId, state);
@@ -636,6 +690,19 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         }
         if (Array.isArray(state.decorations)) this.decorations = state.decorations;
         if (state.points !== undefined) this.points = state.points;
+
+        // load dirt state if present
+        if (state.dirtLevel !== undefined) this.dirtLevel = state.dirtLevel;
+        if (state.dirtLastUpdated !== undefined) this.dirtLastUpdated = state.dirtLastUpdated;
+        if (Array.isArray(state.dirtStains)) this.dirtStains = state.dirtStains;
+
+        // start dirt service with loaded state
+        try {
+          if (this.currentUserId) {
+            this.dirtService.start(this.currentUserId, { dirtLevel: this.dirtLevel, dirtLastUpdated: this.dirtLastUpdated, dirtStains: this.dirtStains }, 10);
+          }
+        } catch (e) { console.warn('Failed to start DirtService', e); }
+
         console.log('Aquarium state loaded from cloud! 🌊');
       } else {
         console.log('No saved state found in cloud');
@@ -675,10 +742,18 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     // update and draw fish
     this.updateFish();
     this.canvasService.drawFish(this.fish);
-    
+
+    // draw dirt effects (turbidity overlay) and visible stains on glass
+    try {
+      this.canvasService.drawDirtOverlay(this.dirtLevel);
+      this.canvasService.drawStains(this.dirtStains);
+    } catch (e) {
+      // ignore rendering errors
+    }
+
     // Passive point generation from fish
     this.generatePointsFromFish();
-    
+
     // draw surface waves and light via service
     this.canvasService.drawSurfaceWaves(this.waveOffset);
     this.canvasService.drawLightEffect(this.lightIntensity);
@@ -692,23 +767,23 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.fish.forEach(fish => {
       // Skip dead fish
       if (fish.isDead) return;
-      
+
       // Initialize timestamp if not set
       if (!fish.lastPointsGenerated) {
         fish.lastPointsGenerated = now;
         return;
       }
-      
+
       // Check if interval has passed
       if (now - fish.lastPointsGenerated >= this.POINTS_PER_FISH_INTERVAL) {
         // Get fish tier to calculate points
         const fishType = this.fishService.fishTypes.find(f => f.id === fish.type);
         const tier = fishType?.tier || 1;
         const pointsToAdd = this.getFishPointsPerInterval(tier);
-        
+
         this.points += pointsToAdd;
         fish.lastPointsGenerated = now;
-        
+
         // Visual feedback: show +points above fish (optional, can be implemented later)
         // For now, just log it
         console.log(`+${pointsToAdd} Punkte von ${fishType?.name || 'Fisch'}!`);
@@ -730,6 +805,32 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     // delegate to particleService
     this.particleService.addFeedBurst(10, 50, 750);
     this.points -= this.FEED_COST;
+
+    // spawn some stains where feed will land (randomized across the width, just under surface)
+    try {
+      const canvas = this.canvasRef.nativeElement;
+      for (let i = 0; i < 3; i++) {
+        const nx = Math.max(0, Math.min(1, (0.2 + Math.random() * 0.6)));
+        const ny = Math.max(0, Math.min(1, 0.12 + Math.random() * 0.06)); // few cm under surface
+        this.dirtService.spawnStainsAt(nx, ny, 1);
+      }
+      // apply a small global dirt influence from feeding
+      this.dirtService.applyFishInfluence(this.fish.length, 1.2, 0.05);
+    } catch (e) {
+      console.warn('Failed to spawn stains/apply dirt influence on feed', e);
+    }
+  }
+
+  toggleBrush(): void {
+    this.brushActive = !this.brushActive;
+    const canvas = this.canvasRef?.nativeElement;
+    try {
+      if (canvas) {
+        canvas.style.cursor = this.brushActive ? 'none' : '';
+      }
+    } catch (e) {}
+    if (this.brushActive) this.showMessage('Reinigungsbürste aktiviert');
+    else this.showMessage('Reinigungsbürste deaktiviert');
   }
 
   toggleLight(): void {
@@ -748,5 +849,70 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   private createWaterParticles(): void {
     const canvas = this.canvasRef?.nativeElement;
     if (canvas) this.particleService.initParticles(20, canvas.width, canvas.height);
+  }
+
+  private onCanvasPointerDown = (ev: PointerEvent) => {
+    if (!this.brushActive) return;
+    this.isBrushing = true;
+    this.lastBrushTime = Date.now();
+    // update sponge position
+    try {
+      const canvas = this.canvasRef.nativeElement;
+      const rect = canvas.getBoundingClientRect();
+      this.spongeX = Math.max(0, Math.min(rect.width, (ev as any).clientX - rect.left));
+      this.spongeY = Math.max(0, Math.min(rect.height, (ev as any).clientY - rect.top));
+    } catch (e) {}
+    this.handleBrushEvent(ev);
+  };
+
+  private onCanvasPointerMove = (ev: PointerEvent) => {
+    // update sponge position whenever brush is active
+    if (this.brushActive) {
+      try {
+        const canvas = this.canvasRef.nativeElement;
+        const rect = canvas.getBoundingClientRect();
+        this.spongeX = Math.max(0, Math.min(rect.width, (ev as any).clientX - rect.left));
+        this.spongeY = Math.max(0, Math.min(rect.height, (ev as any).clientY - rect.top));
+      } catch (e) {}
+    }
+
+    if (!this.isBrushing) return;
+    this.handleBrushEvent(ev);
+  };
+
+  private onCanvasPointerUp = (_ev: PointerEvent) => {
+    if (!this.isBrushing) return;
+    this.isBrushing = false;
+  };
+
+  private handleBrushEvent(ev: PointerEvent) {
+    const canvas = this.canvasRef.nativeElement;
+    const rect = canvas.getBoundingClientRect();
+    const cssX = (ev as any).clientX - rect.left;
+    const cssY = (ev as any).clientY - rect.top;
+    // update sponge position as well
+    this.spongeX = Math.max(0, Math.min(rect.width, cssX));
+    this.spongeY = Math.max(0, Math.min(rect.height, cssY));
+
+    // normalized
+    const nx = Math.max(0, Math.min(1, cssX / rect.width));
+    const ny = Math.max(0, Math.min(1, cssY / rect.height));
+    const now = Date.now();
+    const dtSec = Math.min(0.1, Math.max(0.001, (now - this.lastBrushTime) / 1000));
+    this.lastBrushTime = now;
+    try {
+      const cleaned = this.dirtService.cleanArea(nx, ny, this.brushRadiusPx, canvas.width, canvas.height, 0.9, dtSec);
+      if (cleaned > 0) {
+        // spawn small cleaning particles for feedback (throttled)
+        const nowMs = Date.now();
+        if (nowMs - this.lastSpawnFeedback > 80) {
+          this.lastSpawnFeedback = nowMs;
+          // spawn at sponge position in pixel coords
+          this.particleService.spawnCleaningParticles(this.spongeX, this.spongeY, 2);
+        }
+      }
+    } catch (e) {
+      console.warn('Brush clean failed', e);
+    }
   }
 }
