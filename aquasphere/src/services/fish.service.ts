@@ -24,9 +24,10 @@ export class FishService {
 
   createStarterFish(): void {
     this.fish = [];
-    this.fish.push({ id: 'starter1', type: 'goldfish', x: 200, y: 300, speedX: 1, speedY: 0.5, direction: 0, isFeeding: false, hunger: 50, lastFeedTime: Date.now(), size: 25, color: '#FFD700' });
-    this.fish.push({ id: 'starter2', type: 'bluefish', x: 500, y: 200, speedX: -1, speedY: 0.3, direction: Math.PI, isFeeding: false, hunger: 60, lastFeedTime: Date.now(), size: 20, color: '#4169E1' });
-    this.fish.push({ id: 'starter3', type: 'redfish', x: 350, y: 450, speedX: 0.5, speedY: -0.8, direction: Math.PI / 2, isFeeding: false, hunger: 40, lastFeedTime: Date.now(), size: 18, color: '#DC143C' });
+    const now = Date.now();
+    this.fish.push({ id: 'starter1', type: 'goldfish', x: 200, y: 300, speedX: 1, speedY: 0.5, direction: 0, isFeeding: false, hunger: 50, lastFeedTime: now, size: 25, color: '#FFD700', name: 'Goldie', birthTime: now - 1000 * 60 * 60 * 24 * 3, pointsEarned: 0 });
+    this.fish.push({ id: 'starter2', type: 'bluefish', x: 500, y: 200, speedX: -1, speedY: 0.3, direction: Math.PI, isFeeding: false, hunger: 60, lastFeedTime: now, size: 20, color: '#4169E1', name: 'Blinky', birthTime: now - 1000 * 60 * 60 * 24 * 1, pointsEarned: 0 });
+    this.fish.push({ id: 'starter3', type: 'redfish', x: 350, y: 450, speedX: 0.5, speedY: -0.8, direction: Math.PI / 2, isFeeding: false, hunger: 40, lastFeedTime: now, size: 18, color: '#DC143C', name: 'Ruby', birthTime: now - 1000 * 60 * 60 * 24 * 7, pointsEarned: 0 });
   }
 
   addFish(typeId: string, x?: number, y?: number, canvasWidth = 800, canvasHeight = 600): void {
@@ -49,7 +50,10 @@ export class FishService {
       hunger: Math.random() * 50 + 25,
       lastFeedTime: Date.now(),
       size: fishType.size,
-      color: fishType.color
+      color: fishType.color,
+      name: fishType.name + ' #' + Math.floor(Math.random() * 1000),
+      birthTime: Date.now(),
+      pointsEarned: 0
     };
 
     this.fish.push(fish);

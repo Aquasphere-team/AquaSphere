@@ -133,6 +133,33 @@
               <div class="message-box">{{ messageText }}</div>
             </div>
 
+            <!-- Fish info modal (backdrop closes modal) -->
+            <div class="fish-info-modal" *ngIf="selectedFish" (click)="closeFishInfo()">
+              <div class="fish-info-card" (click)="$event.stopPropagation()">
+                <button class="close-phone-auth" (click)="closeFishInfo()">✕</button>
+                <h3>Fisch-Info</h3>
+                <div class="fish-info-row">
+                  <label>Name</label>
+                  <input [(ngModel)]="selectedFishNameInput" placeholder="Fischname" (keyup.enter)="saveFishName()" (blur)="saveFishName()" />
+                </div>
+                <div class="fish-info-row">
+                  <label>Hunger</label>
+                  <div>{{ selectedFish.hunger | number:'1.0-0' }} / 100</div>
+                </div>
+                <div class="fish-info-row">
+                  <label>Alter</label>
+                  <div>{{ selectedFishAgeText }}</div>
+                </div>
+                <div class="fish-info-row">
+                  <label>Punkte mit diesem Fisch</label>
+                  <div>🪙 {{ selectedFish.pointsEarned || 0 }}</div>
+                </div>
+                <div class="fish-info-actions">
+                  <button class="control-btn" (click)="closeFishInfo()">Schließen</button>
+                </div>
+              </div>
+            </div>
+
             <!-- placing indicator -->
             <div id="placing-indicator" class="placing-indicator" [hidden]="!placingPlant && !placingFish && !placingDecoration"></div>
             <!-- placement hint shown while placing -->

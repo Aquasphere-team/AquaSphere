@@ -68,10 +68,23 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly BASE_POINTS_PER_FISH = 1; // tier 1 generates 1 point
   readonly POINTS_MULTIPLIER = 2; // each tier generates 2x more points (1, 2, 4, 8)
 
+  // Dirt / feeding tuning constants (new)
+  readonly DIRT_PASSIVE_TICK_SEC = 60; // seconds between passive dirt ticks (used when starting DirtService)
+  readonly DIRT_PER_FISH_INFLUENCE = 0.02; // dirt amount per fish for influence calls (smaller -> slower dirt increase)
+  readonly DIRT_FEED_MULTIPLIER = 1.2; // multiplier applied during feed influence
+  readonly FEED_STAIN_COUNT = 3; // how many visible stains to spawn when feeding
+  readonly FEED_STAIN_VERTICAL_PADDING = 0.05; // normalized padding from top/bottom for stain spawn
+  readonly FEED_STAIN_HORIZONTAL_PADDING = 0.05; // normalized padding left/right for stain spawn
+
   // UI helpers
   previews: Record<string, string> = {};
   placingDecoration = false;
   selectedDecorationType: string | null = null;
+  // fish info panel
+  selectedFish: FishInstance | null = null;
+  selectedFishNameInput = '';
+  selectedFishAgeText = '';
+  private selectedFishAgeInterval?: number;
 
   // expose fishTypes from FishService so the template can iterate over them
   get fishTypes(): FishType[] {
@@ -381,6 +394,20 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     const rect = canvas.getBoundingClientRect();
     const cssX = ((ev as any).clientX - rect.left);
     const cssY = ((ev as any).clientY - rect.top);
+
+    // If not in remove mode or placing, check if user clicked on a fish to open info
+    if (!this.placingFish && !this.placingPlant && !this.placingDecoration && !this.removeMode) {
+      for (let i = this.fish.length - 1; i >= 0; i--) {
+        const f = this.fish[i];
+        const d = Math.hypot(f.x - cssX, f.y - cssY);
+        if (d <= Math.max(16, f.size * 0.6)) {
+          // open fish info
+          this.openFishInfo(f);
+          // stop event handling so placement logic doesn't also act
+          return;
+        }
+      }
+    }
 
     // If remove mode active, try to remove nearest decoration or plant
     if (this.removeMode) {
@@ -699,7 +726,8 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         // start dirt service with loaded state
         try {
           if (this.currentUserId) {
-            this.dirtService.start(this.currentUserId, { dirtLevel: this.dirtLevel, dirtLastUpdated: this.dirtLastUpdated, dirtStains: this.dirtStains }, 10);
+            // use configured passive tick interval so dirt accumulation rate is tunable
+            this.dirtService.start(this.currentUserId, { dirtLevel: this.dirtLevel, dirtLastUpdated: this.dirtLastUpdated, dirtStains: this.dirtStains }, this.DIRT_PASSIVE_TICK_SEC);
           }
         } catch (e) { console.warn('Failed to start DirtService', e); }
 
@@ -782,6 +810,8 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         const pointsToAdd = this.getFishPointsPerInterval(tier);
 
         this.points += pointsToAdd;
+        // track on-fish earned points
+        fish.pointsEarned = (fish.pointsEarned || 0) + pointsToAdd;
         fish.lastPointsGenerated = now;
 
         // Visual feedback: show +points above fish (optional, can be implemented later)
@@ -809,13 +839,14 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     // spawn some stains where feed will land (randomized across the width, just under surface)
     try {
       const canvas = this.canvasRef.nativeElement;
-      for (let i = 0; i < 3; i++) {
-        const nx = Math.max(0, Math.min(1, (0.2 + Math.random() * 0.6)));
-        const ny = Math.max(0, Math.min(1, 0.12 + Math.random() * 0.06)); // few cm under surface
+      // spawn stains across aquarium area using configured paddings and count
+      for (let i = 0; i < this.FEED_STAIN_COUNT; i++) {
+        const nx = this.FEED_STAIN_HORIZONTAL_PADDING + Math.random() * (1 - this.FEED_STAIN_HORIZONTAL_PADDING * 2);
+        const ny = this.FEED_STAIN_VERTICAL_PADDING + Math.random() * (1 - this.FEED_STAIN_VERTICAL_PADDING * 2);
         this.dirtService.spawnStainsAt(nx, ny, 1);
       }
-      // apply a small global dirt influence from feeding
-      this.dirtService.applyFishInfluence(this.fish.length, 1.2, 0.05);
+      // apply a configurable global dirt influence from feeding
+      this.dirtService.applyFishInfluence(this.fish.length, this.DIRT_FEED_MULTIPLIER, this.DIRT_PER_FISH_INFLUENCE);
     } catch (e) {
       console.warn('Failed to spawn stains/apply dirt influence on feed', e);
     }
@@ -913,6 +944,65 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     } catch (e) {
       console.warn('Brush clean failed', e);
+    }
+  }
+
+  openFishInfo(fish: FishInstance) {
+    this.selectedFish = fish;
+    this.selectedFishNameInput = fish.name || '';
+    this.updateSelectedFishAge();
+    // update age text every minute while modal open
+    try { this.selectedFishAgeInterval = window.setInterval(() => this.updateSelectedFishAge(), 60_000) as unknown as number; } catch (e) {}
+  }
+
+  closeFishInfo() {
+    this.selectedFish = null;
+    this.selectedFishNameInput = '';
+    this.selectedFishAgeText = '';
+    if (this.selectedFishAgeInterval) { try { clearInterval(this.selectedFishAgeInterval); } catch (e) {} this.selectedFishAgeInterval = undefined; }
+  }
+
+  async saveFishName() {
+    if (!this.selectedFish) return;
+    this.selectedFish.name = this.selectedFishNameInput.trim() || this.selectedFish.name;
+    // auto-save silently (no alert). If user not logged in, keep change local only.
+    try { await this.saveUserStateSilent(); } catch (e) { console.warn('Auto-save (silent) after rename failed', e); }
+  }
+
+  private updateSelectedFishAge() {
+    if (!this.selectedFish || !this.selectedFish.birthTime) {
+      this.selectedFishAgeText = 'Unbekannt';
+      return;
+    }
+    const ms = Date.now() - this.selectedFish.birthTime;
+    const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    if (days > 0) this.selectedFishAgeText = `${days}d ${hours}h`;
+    else if (hours > 0) this.selectedFishAgeText = `${hours}h ${mins}m`;
+    else this.selectedFishAgeText = `${mins}m`;
+  }
+
+  private async saveUserStateSilent(): Promise<void> {
+    if (!this.currentUserId) {
+      // not logged in - keep changes local
+      return;
+    }
+    try {
+      const state = {
+        lightIntensity: this.lightIntensity,
+        particles: this.particleService.getParticles(),
+        plants: this.plants,
+        fish: this.fish,
+        decorations: this.decorations,
+        points: this.points,
+        dirtLevel: this.dirtLevel,
+        dirtLastUpdated: this.dirtLastUpdated,
+        dirtStains: this.dirtStains
+      };
+      await this.supabaseService.saveAquariumState(this.currentUserId, state);
+    } catch (e) {
+      console.warn('silent save failed', e);
     }
   }
 }

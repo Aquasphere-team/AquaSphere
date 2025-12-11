@@ -23,6 +23,9 @@ export interface FishInstance {
   lastFeedTime: number;
   size: number;
   color: string;
+  name?: string;          // optional user-assigned name
+  birthTime?: number;     // timestamp when fish was created (ms)
+  pointsEarned?: number;  // points generated/earned by this fish
   // optional runtime state
   isDead?: boolean;          // true when fish has died from starvation
   deathTime?: number;        // timestamp when fish died
