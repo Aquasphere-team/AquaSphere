@@ -25,8 +25,8 @@ export class DirtService {
   private pendingSaveHandle: any = null;
 
   // config (tweakable)
-  private readonly dirtRatePerFishPerMin = 0.08; // per fish per minute
-  private readonly dirtRateFromFeed = 2.0; // feed residue weight
+  private readonly dirtRatePerFishPerMin = 2.0; // per fish per minute
+  private readonly dirtRateFromFeed = 0.1; // feed residue weight
   private readonly naturalDecayPerMin = 0.01; // natural cleanup
 
   private state: DirtState = {
