@@ -6,6 +6,7 @@ import { DecorationType, PlacedDecoration } from '../models/decoration.model';
 export class CanvasService {
   private canvas?: HTMLCanvasElement;
   private ctx?: CanvasRenderingContext2D;
+  private hungerBarDebugLogged = false;
 
   initCanvas(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
@@ -583,7 +584,37 @@ export class CanvasService {
       ctx.globalAlpha = 0.6;
       ctx.fillStyle = f.color;
 
-      if (f.type === 'angelfish') {
+      // Special rendering for catfish (cleaner fish)
+      if (f.type === 'catfish') {
+        // Draw barbels (whiskers)
+        ctx.strokeStyle = this.darkenColor(f.color, 0.4);
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.8;
+        // Upper barbels
+        ctx.beginPath();
+        ctx.moveTo(f.size * 0.6, -f.size * 0.3);
+        ctx.lineTo(f.size * 1.1, -f.size * 0.5);
+        ctx.stroke();
+        // Lower barbels
+        ctx.beginPath();
+        ctx.moveTo(f.size * 0.6, f.size * 0.1);
+        ctx.lineTo(f.size * 1.1, f.size * 0.3);
+        ctx.stroke();
+        // Flatter body shape
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = this.darkenColor(f.color, 0.2);
+        ctx.beginPath();
+        ctx.ellipse(0, f.size * 0.1, f.size * 0.7, f.size * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Spots pattern
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = this.darkenColor(f.color, 0.4);
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath();
+          ctx.arc(-f.size * 0.3 + i * f.size * 0.3, (i % 2 ? -0.2 : 0.2) * f.size, f.size * 0.1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (f.type === 'angelfish') {
         ctx.beginPath();
         ctx.moveTo(0, -f.size * 0.5);
         ctx.lineTo(f.size * 0.2, -f.size * 1.2);
@@ -616,9 +647,9 @@ export class CanvasService {
       ctx.restore();
       ctx.globalAlpha = 1;
 
-      // draw hunger bar above fish if they're hungry
+      // draw hunger bar above fish if they're hungry (show at 20+ hunger)
       try {
-        if (!f.isDead && typeof f.hunger === 'number' && f.hunger > 60) {
+        if (!f.isDead && typeof f.hunger === 'number' && f.hunger > 20) {
           const barWidth = Math.max(28, f.size * 1.6);
           const barHeight = 6;
           const bx = f.x - barWidth / 2;
@@ -628,13 +659,22 @@ export class CanvasService {
           ctx.fillStyle = 'rgba(0,0,0,0.45)';
           ctx.fillRect(bx - 1, by - 1, barWidth + 2, barHeight + 2);
 
-          // empty bar background
-          ctx.fillStyle = 'rgba(200,200,200,0.25)';
+          // empty bar background (red = hungry)
+          ctx.fillStyle = 'rgba(220,40,40,0.98)';
           ctx.fillRect(bx, by, barWidth, barHeight);
 
-          // filled red portion proportional to hunger
-          const fillW = Math.max(0, Math.min(barWidth, (f.hunger / 100) * barWidth));
-          ctx.fillStyle = 'rgba(220,40,40,0.98)';
+          // filled green portion = satiety (inverted: 100 hunger = 0% bar, 0 hunger = 100% bar)
+          const satiety = 100 - f.hunger; // Invert: 0 hunger = 100 satiety
+          const fillW = Math.max(0, Math.min(barWidth, (satiety / 100) * barWidth));
+          
+          // Debug log (only log once per fish per frame to avoid spam)
+          if (!this.hungerBarDebugLogged) {
+            console.log(`🎨 Hunger Bar: ${f.name || f.type} - Hunger: ${f.hunger.toFixed(1)}, Satiety: ${satiety.toFixed(1)}, FillWidth: ${fillW.toFixed(1)}/${barWidth}`);
+            this.hungerBarDebugLogged = true;
+            setTimeout(() => this.hungerBarDebugLogged = false, 2000); // Reset after 2s
+          }
+          
+          ctx.fillStyle = 'rgba(40,220,40,0.98)'; // Green for satiety
           ctx.fillRect(bx, by, fillW, barHeight);
 
           // border

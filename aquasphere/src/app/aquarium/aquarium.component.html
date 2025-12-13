@@ -17,6 +17,13 @@
           <!-- points display -->
           <div class="points-display">🪙 {{ points }} Punkte</div>
 
+          <!-- time display with speed controls -->
+          <div class="time-display">
+            <button class="time-control" (click)="decreaseTimeSpeed()" [disabled]="timeSpeed <= 1">◀</button>
+            <span class="time-text">{{ getFormattedAquariumTime() }} ({{timeSpeed}}x)</span>
+            <button class="time-control" (click)="increaseTimeSpeed()" [disabled]="timeSpeed >= MAX_TIME_SPEED">▶</button>
+          </div>
+
           <div class="phone-screen">
             <canvas #aquariumCanvas></canvas>
 
@@ -25,6 +32,12 @@
 
             <!-- Menu button at bottom -->
             <button class="phone-menu-btn-bottom" (click)="toggleInScreenMenu()">☰</button>
+            
+            <!-- Dirt penalty warning icon (next to menu button) -->
+            <button class="dirt-warning-icon" *ngIf="isAquariumDirty()" 
+                    [title]="'⚠️ Schmutz: ' + dirtStains.length + ' Flecken! Penalty: -' + getDirtPenaltyPercent() + '% weniger Punkte!'">
+              ⚠️
+            </button>
 
             <!-- In-screen controls (animated): use class binding so CSS transitions apply -->
             <div class="in-screen-controls" [class.open]="inScreenMenu">

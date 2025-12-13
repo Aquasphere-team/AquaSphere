@@ -48,6 +48,86 @@
   pointer-events: none;
 }
 
+.time-display {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 6px 12px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.time-control {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: background 0.2s;
+}
+
+.time-control:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.time-control:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.time-text {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+/* Dirt warning icon (next to menu button) */
+.dirt-warning-icon {
+  position: absolute;
+  bottom: 12px;
+  right: 70px;
+  z-index: 1000;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(145deg, #ff3b30, #d32f2f);
+  color: white;
+  font-size: 24px;
+  box-shadow: 0 8px 20px rgba(255, 59, 48, 0.4);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: warning-pulse 2s ease-in-out infinite;
+}
+
+.dirt-warning-icon:hover {
+  background: linear-gradient(145deg, #d32f2f, #b71c1c);
+  transform: translateY(-2px) scale(1.1);
+  box-shadow: 0 12px 24px rgba(255, 59, 48, 0.6);
+}
+
+@keyframes warning-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
 .phone-menu-btn-bottom {
   position: absolute;
   bottom: 12px;
