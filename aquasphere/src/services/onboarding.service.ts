@@ -71,5 +71,10 @@ export class OnboardingService {
     this.setSeen(true);
     this.visibleSubject.next(false);
   }
-}
 
+  // Force-show the onboarding regardless of the seen flag (used by "nochmal ansehen" button)
+  show() {
+    this.stepSubject.next(0);
+    this.visibleSubject.next(true);
+  }
+}

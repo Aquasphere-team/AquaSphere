@@ -32,10 +32,10 @@
 
             <!-- Menu button at bottom -->
             <button class="phone-menu-btn-bottom" (click)="toggleInScreenMenu()">☰</button>
-            
+
             <!-- Dirt penalty warning icon (next to menu button) -->
-            <button class="dirt-warning-icon" *ngIf="isAquariumDirty()" 
-                    [title]="'⚠️ Schmutz: ' + dirtStains.length + ' Flecken! Penalty: -' + getDirtPenaltyPercent() + '% weniger Punkte!'">
+            <button class="dirt-warning-icon" *ngIf="isAquariumDirty()"
+                    [title]="'⚠️ Schmutz: ' + dirtLevel.toFixed(2) + ' % Penalty: ' + getDirtPenaltyPercent() + '% weniger Punkte!'">
               ⚠️
             </button>
 
@@ -94,11 +94,16 @@
                       <button class="control-btn" (click)="showRegister = true" *ngIf="!currentUser && !showRegister">Zur Registrierung</button>
                       <button class="control-btn" (click)="saveUserState()" *ngIf="currentUser">Speichern</button>
                       <button class="control-btn" (click)="logout()" *ngIf="currentUser">Abmelden</button>
+                      <!-- Onboarding button shown inside profile dialog so user can reopen it anytime -->
+                      <button class="control-btn" (click)="openOnboarding()">Onboarding anzeigen</button>
                     </div>
                   </div>
                 </div>
               </div>
             </ng-container>
+
+            <!-- Onboarding component (standalone) -->
+            <app-onboarding></app-onboarding>
             <!-- Decoration palette - removed from DOM when not visible -->
             <ng-container *ngIf="decorationPaletteVisible">
               <div class="decoration-palette" (click)="$event.stopPropagation()">

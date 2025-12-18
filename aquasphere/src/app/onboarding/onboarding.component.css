@@ -1,0 +1,20 @@
+.onboarding-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); z-index: 2100; }
+.onboarding-card { width: min(92%, 520px); border-radius: 14px; background: linear-gradient(180deg, rgba(5,40,60,0.95), rgba(2,30,50,0.98)); color: #eafaf0; box-shadow: 0 12px 40px rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.03); overflow: hidden; padding: 12px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+.onb-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-bottom:8px; }
+.onb-title h2 { margin:0; color:#7ff2d0; font-size:1.25rem; text-shadow: 0 6px 18px rgba(0,212,170,0.08); }
+.onb-sub { margin:0; font-size:0.85rem; color:#bdeedc; opacity:0.9 }
+.onb-close { background: rgba(0,0,0,0.45); border: none; color: #fff; width:36px; height:36px; border-radius: 18px; cursor:pointer; }
+.onb-body { padding: 8px 2px 12px 2px; font-size: 0.99rem; color: #dff7ec; line-height:1.45; }
+.onb-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:8px; border-top: 1px solid rgba(255,255,255,0.02); }
+.onb-step-indicator { color:#bfeee0; font-size:0.85rem }
+.onb-actions { display:flex; gap:8px; align-items:center }
+.control-btn { padding:8px 12px; border-radius:10px; border:none; cursor:pointer; font-weight:600 }
+.control-btn.primary { background: linear-gradient(145deg, #00a8ff, #0066ff); color: #fff; box-shadow: 0 8px 20px rgba(0,168,255,0.18); }
+.btn-link { background: transparent; border: none; color: #9fead0; cursor: pointer; }
+.btn-ghost { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.04); color: #cfeee4; padding: 6px 10px; border-radius:8px }
+
+/* responsive tweaks */
+@media (max-width: 420px) {
+  .onboarding-card { width: 94%; padding:10px }
+  .onb-title h2 { font-size:1.05rem }
+}

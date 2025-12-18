@@ -78,7 +78,7 @@ export class FishService {
           console.log(`🗑️ ${fish.name || fish.type}: Despawnt (10s nach Tod)`);
           return;
         }
-        
+
         // if dead fish not yet settled, glide it down belly-up towards bottom
         if (!fish.deadSettled) {
           // flip belly-up by rotating direction to pi/2 (upwards) so draw will show belly-up
@@ -131,7 +131,13 @@ export class FishService {
       // Mark cleaner fish but let them swim normally
       const fishType = fishTypes.find(t => t.id === fish.type);
       if (fishType?.isCleaner) {
+        // Mark as cleaner fish but do NOT assign targets or chase stains.
         fish.isCleanerFish = true;
+        // Ensure any previous cleaning-target state is cleared so fish behave passively.
+        fish.isCleaning = false;
+        fish.targetDirtStain = undefined;
+        fish.targetX = undefined;
+        fish.targetY = undefined;
       }
 
       if (Math.random() < 0.005) {
@@ -151,13 +157,13 @@ export class FishService {
       // increase hunger over time (configurable, scaled by timeSpeed)
       // BUT pause hunger increase if fish ate recently (satiation period in GAME time)
       const oldHunger = fish.hunger;
-      
+
       // Check if fish is satiated: real time since eating < pause duration / timeSpeed
       // This way changing timeSpeed mid-pause works correctly
       const realTimeSinceAte = fish.lastAteTime ? (now - fish.lastAteTime) : Infinity;
       const realTimePauseNeeded = this.SATIATION_PAUSE_GAME_MS / timeSpeed;
       const isSatiated = realTimeSinceAte < realTimePauseNeeded;
-      
+
       if (!isSatiated) {
         fish.hunger = Math.min(100, fish.hunger + ((now - fish.lastFeedTime) / this.HUNGER_MS_PER_POINT) * timeSpeed);
         fish.lastFeedTime = now; // Only update when hunger increases
@@ -165,12 +171,12 @@ export class FishService {
         // During satiation, reset lastFeedTime so hunger starts from 0 after pause
         fish.lastFeedTime = now;
       }
-      
+
       // Debug: Log hunger changes every ~10 points
       if (Math.floor(fish.hunger / 10) !== Math.floor(oldHunger / 10)) {
         console.log(`🐟 ${fish.name || fish.type}: Hunger ${fish.hunger.toFixed(1)}/100 (0=satt, 100=verhungert)`);
       }
-      
+
       // Debug: Log satiation status when it ends
       const realTimeLeft = realTimePauseNeeded - realTimeSinceAte;
       if (isSatiated && realTimeLeft < 1000 && !fish.satiationLoggedEnd) {
@@ -202,7 +208,7 @@ export class FishService {
         fish.speedY = 0.5;
         return;
       }
-      
+
       // Warning when close to death
       if (fish.starvationStart && !fish.deathWarning) {
         const timeLeft = this.STARVATION_DEATH_MS - (now - fish.starvationStart);
@@ -216,8 +222,8 @@ export class FishService {
 
       // feeding behaviour: prefer settled feed particles (on bottom). If none, allow chasing
       // floating feed only when that feed particle is a few cm under the surface (y <= SURFACE_FEED_MAX_Y).
-      // Cleaner fish only feed when not cleaning
-      if (fish.hunger > this.HUNGER_THRESHOLD && !fish.isFeeding && !fish.isCleaning) {
+      // Feeding has priority over cleaning: cleaner fish will abandon cleaning to chase food if hungry.
+      if (fish.hunger > this.HUNGER_THRESHOLD && !fish.isFeeding) {
         console.log(`🍽️ ${fish.name || fish.type}: Sucht Futter! Hunger: ${fish.hunger.toFixed(1)}/100 (Threshold: ${this.HUNGER_THRESHOLD})`);
         const settledFood = particles.filter(p => (p as any).isFeed && (p as any).settled);
         let candidateFood: Particle[];
@@ -236,6 +242,13 @@ export class FishService {
           }, null as any);
 
           if (nearestFood) {
+             // If the fish was cleaning, cancel cleaning so it can prioritize feeding
+             if (fish.isCleaning) {
+               fish.isCleaning = false;
+               fish.targetDirtStain = undefined;
+               fish.targetX = undefined;
+               fish.targetY = undefined;
+             }
              fish.targetParticle = nearestFood;
              fish.targetX = nearestFood.x;
              fish.targetY = nearestFood.y;
@@ -314,7 +327,7 @@ export class FishService {
           }
         }
       });
-    
+
     // Remove dead fish marked for despawning
     const beforeCount = fishList.length;
     const updatedList = fishList.filter(f => !(f as any).shouldRemove);

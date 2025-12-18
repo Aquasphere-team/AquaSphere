@@ -9,11 +9,13 @@ import { PlacedDecoration } from '../../models/decoration.model';
 import { CanvasService } from '../../services/canvas.service';
 import { ParticleService } from '../../services/particle.service';
 import { DirtService } from '../../services/dirt.service';
+import { OnboardingService } from '../../services/onboarding.service';
+import { OnboardingComponent } from '../onboarding/onboarding.component';
 
 @Component({
   selector: 'app-aquarium',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, OnboardingComponent],
   templateUrl: './aquarium.component.html',
   styleUrls: ['./aquarium.component.css']
 })
@@ -28,6 +30,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     , private particleService: ParticleService
     , private dirtService: DirtService
     , private cdr: ChangeDetectorRef
+    , private onboarding: OnboardingService
   ) {}
 
   // state
@@ -233,6 +236,16 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     setTimeout(() => {
       this.initializeAquarium();
     }, 100);
+
+    // Trigger onboarding for new users (service prevents showing if already seen)
+    try {
+      setTimeout(() => this.onboarding.start(), 250);
+    } catch (e) {}
+  }
+
+  // Open onboarding on-demand (button)
+  openOnboarding(): void {
+    try { this.onboarding.show(); } catch (e) { /* ignore */ }
   }
 
   ngOnDestroy(): void {
@@ -983,32 +996,36 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       console.warn('Fish-generated dirt update failed', e);
     }
 
-    // Active cleaning by cleaner fish - they clean like the brush/sponge as they swim
+    // Active cleaning by cleaner fish - passive cleaning at their current position
     const cleaningThrottle = 50; // Spawn bubbles every 50ms for continuous stream
     this.fish.forEach(fish => {
       if (fish.isCleanerFish && !fish.isDead) {
-        // Convert fish position to normalized coordinates
+        // Cleaner fish clean passively where they are; do not assign or chase stains.
         const nx = fish.x / canvasWidth;
         const ny = fish.y / canvasHeight;
-        const cleanRadiusPx = fish.size * 2.5; // Good cleaning radius
+        const cleanRadiusPx = Math.max(fish.size * 2.5, 16);
 
-        // Use a tunable cleaning strength (per-second) defined on the component
-        // and call cleanArea with reduceWater = false so cleaner fish remove visible stains
-        // but do not aggressively lower the global dirtLevel
         const strength = this.CLEANER_FISH_CLEANING_RATE; // per second strength
         const cleaned = this.dirtService.cleanArea(nx, ny, cleanRadiusPx, canvasWidth, canvasHeight, strength, deltaSeconds, false);
 
-        // Always spawn LOTS of bubbles for cleaner fish like sponge!
+        // Small global turbidity reduction from cleaner fish (very conservative)
+        try {
+          if (cleaned > 0) {
+            const globalReduction = Math.min(Math.max(0, this.dirtLevel), cleaned * 0.5);
+            if (globalReduction > 0.001) this.dirtService.cleanAll(globalReduction);
+          }
+        } catch (e) { /* ignore */ }
+
+        // Spawn cleaning particles for feedback (throttled)
         const nowMs = Date.now();
         if (!fish.lastCleaningParticles || nowMs - fish.lastCleaningParticles > cleaningThrottle) {
           fish.lastCleaningParticles = nowMs;
-          // Spawn many bubbles like sponge brush
-          this.particleService.spawnCleaningParticles(fish.x, fish.y, 8);
+          this.particleService.spawnCleaningParticles(fish.x, fish.y, 6);
         }
 
         // Log when cleaning happens
         if (cleaned > 0.01) {
-          console.log(`🧹 Putzfisch reinigt (stains only). Position: (${Math.round(fish.x)}, ${Math.round(fish.y)}), Schmutz entfernt: ${(cleaned * 100).toFixed(2)}%, Stains: ${this.dirtStains.length}, DirtLevel: ${this.dirtLevel.toFixed(1)}`);
+          console.log(`🧹 Putzfisch reinigt passiv. Position: (${Math.round(fish.x)}, ${Math.round(fish.y)}), Schmutz entfernt: ${(cleaned * 100).toFixed(2)}%`);
         }
       }
     });
@@ -1135,19 +1152,31 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     const dtSec = Math.min(0.1, Math.max(0.001, (now - this.lastBrushTime) / 1000));
     this.lastBrushTime = now;
     try {
-      const cleaned = this.dirtService.cleanArea(nx, ny, this.brushRadiusPx, canvas.width, canvas.height, 0.9, dtSec);
-      if (cleaned > 0) {
-        // spawn small cleaning particles for feedback (throttled)
-        const nowMs = Date.now();
-        if (nowMs - this.lastSpawnFeedback > 80) {
-          this.lastSpawnFeedback = nowMs;
-          // spawn at sponge position in pixel coords
-          this.particleService.spawnCleaningParticles(this.spongeX, this.spongeY, 2);
-        }
-      }
-    } catch (e) {
-      console.warn('Brush clean failed', e);
-    }
+      // Brush is stronger than putzerfisch and explicitly reduces global water turbidity
+      const brushStrength = 2.0; // moderate brush strength (reduced from previous strong setting)
+      // Always call cleanArea to handle stain removal; reduceWater=true so it may reduce global dirt when it affects stains.
+      const cleaned = this.dirtService.cleanArea(nx, ny, this.brushRadiusPx, canvas.width, canvas.height, brushStrength, dtSec, true);
+       // Always apply a small global dirt reduction from the brush even if no stains were directly cleaned.
+       try {
+         const brushWaterEffectMultiplier = 10; // tuning: scales how much global dirt is removed per strength*dt
+         const alwaysReduction = Math.min(this.dirtLevel, brushStrength * dtSec * brushWaterEffectMultiplier);
+         if (alwaysReduction > 0.0001) {
+           this.dirtService.cleanAll(alwaysReduction);
+         }
+       } catch (e) { /* ignore */ }
+
+       if (cleaned > 0) {
+         // spawn small cleaning particles for feedback (throttled)
+         const nowMs = Date.now();
+         if (nowMs - this.lastSpawnFeedback > 80) {
+           this.lastSpawnFeedback = nowMs;
+           // spawn at sponge position in pixel coords
+           this.particleService.spawnCleaningParticles(this.spongeX, this.spongeY, 2);
+         }
+       }
+     } catch (e) {
+       console.warn('Brush clean failed', e);
+     }
   }
 
   openFishInfo(fish: FishInstance) {

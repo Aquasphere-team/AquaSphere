@@ -1,6 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { OnboardingService } from './onboarding.service';
+import { OnboardingService } from '../../services/onboarding.service';
 
 @Component({
   selector: 'app-onboarding',
@@ -21,11 +21,11 @@ export class OnboardingComponent implements OnInit {
   visible = false;
   step = 0;
 
-  constructor(private onboarding: OnboardingService) {}
+  constructor(@Inject(OnboardingService) private onboarding: OnboardingService) {}
 
   ngOnInit(): void {
-    this.onboarding.visible$.subscribe(v => this.visible = v);
-    this.onboarding.step$.subscribe(s => this.step = s);
+    this.onboarding.visible$.subscribe((v: boolean) => this.visible = v);
+    this.onboarding.step$.subscribe((s: number) => this.step = s);
   }
 
   next() {
@@ -39,4 +39,3 @@ export class OnboardingComponent implements OnInit {
 
   finish() { this.onboarding.complete(); }
 }
-

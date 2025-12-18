@@ -1,0 +1,24 @@
+<div *ngIf="visible" class="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="onb-title">
+  <div class="onboarding-card">
+    <header class="onb-header">
+      <div class="onb-title">
+        <h2 id="onb-title">{{ steps[step].title }}</h2>
+        <p class="onb-sub">Kurze Einführung in AquaSphere</p>
+      </div>
+      <button class="onb-close" aria-label="Schließen" (click)="skip()">✕</button>
+    </header>
+
+    <section class="onb-body">
+      <p>{{ steps[step].text }}</p>
+    </section>
+
+    <footer class="onb-footer">
+      <div class="onb-step-indicator">Schritt {{ step + 1 }} / {{ steps.length }}</div>
+      <div class="onb-actions">
+        <button class="btn-link" (click)="prev()" [disabled]="step === 0">Zurück</button>
+        <button class="control-btn primary" (click)="next()">{{ step < steps.length - 1 ? 'Weiter' : 'Fertig' }}</button>
+        <button class="btn-ghost" (click)="skip()">Überspringen</button>
+      </div>
+    </footer>
+  </div>
+</div>
