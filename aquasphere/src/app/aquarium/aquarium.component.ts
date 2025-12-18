@@ -90,6 +90,8 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   // Cleaning constants
   readonly CLEANER_FISH_CLEANING_RATE = 0.08; // dirt reduction per cleaner fish per second
   readonly PLANT_CLEANING_RATE = 0.03; // dirt reduction per plant per second
+  // small global dirt reduction applied per cleaner fish (units of dirtLevel per second)
+  readonly CLEANER_FISH_GLOBAL_REDUCTION_PER_SEC = 0.15; // very small: 0.03 dirtLevel units per second per cleaner fish
   private lastCleaningUpdate = 0;
 
   // Save debouncing
@@ -1008,11 +1010,18 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         const strength = this.CLEANER_FISH_CLEANING_RATE; // per second strength
         const cleaned = this.dirtService.cleanArea(nx, ny, cleanRadiusPx, canvasWidth, canvasHeight, strength, deltaSeconds, false);
 
-        // Small global turbidity reduction from cleaner fish (very conservative)
+        // Slight global turbidity reduction from cleaner fish (very conservative):
         try {
+          // reduction proportional to what was locally cleaned
           if (cleaned > 0) {
-            const globalReduction = Math.min(Math.max(0, this.dirtLevel), cleaned * 0.5);
-            if (globalReduction > 0.001) this.dirtService.cleanAll(globalReduction);
+            const globalReductionFromClean = Math.min(Math.max(0, this.dirtLevel), cleaned * 0.5);
+            if (globalReductionFromClean > 0.001) this.dirtService.cleanAll(globalReductionFromClean);
+          }
+          // small passive global reduction per cleaner fish per second (independent of cleaned amount)
+          // This models that cleaner fish slightly improve water clarity as they groom the tank.
+          const passiveReduction = Math.min(this.dirtLevel, this.CLEANER_FISH_GLOBAL_REDUCTION_PER_SEC * deltaSeconds);
+          if (passiveReduction > 0.0001) {
+            this.dirtService.cleanAll(passiveReduction);
           }
         } catch (e) { /* ignore */ }
 
