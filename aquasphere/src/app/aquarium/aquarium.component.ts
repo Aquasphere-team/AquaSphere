@@ -83,12 +83,12 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly FEED_STAIN_COUNT = 3; // how many visible stains to spawn when feeding
   readonly FEED_STAIN_VERTICAL_PADDING = 0.05; // normalized padding from top/bottom for stain spawn
   readonly FEED_STAIN_HORIZONTAL_PADDING = 0.05; // normalized padding left/right for stain spawn
-  
+
   // Cleaning constants
   readonly CLEANER_FISH_CLEANING_RATE = 0.08; // dirt reduction per cleaner fish per second
   readonly PLANT_CLEANING_RATE = 0.03; // dirt reduction per plant per second
   private lastCleaningUpdate = 0;
-  
+
   // Save debouncing
   private lastSaveTime = 0;
   private readonly MIN_SAVE_INTERVAL_MS = 2000; // Minimum 2 seconds between saves
@@ -124,12 +124,12 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   getFishCost(fishId: string): number {
     const fishType = this.fishService.fishTypes.find(f => f.id === fishId);
     if (!fishType) return this.BASE_FISH_COST;
-    
+
     // Special pricing for tier 5 cleaner fish - minimum 500 points
     if (fishType.tier === 5 && fishType.isCleaner) {
       return 500;
     }
-    
+
     return Math.round(this.BASE_FISH_COST * Math.pow(this.FISH_COST_MULTIPLIER, fishType.tier - 1));
   }
 
@@ -747,7 +747,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       alert('Du musst angemeldet sein um zu speichern.');
       return;
     }
-    
+
     // Debounce: prevent saving too frequently
     const now = Date.now();
     if (now - this.lastSaveTime < this.MIN_SAVE_INTERVAL_MS) {
@@ -755,7 +755,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     this.lastSaveTime = now;
-    
+
     console.log('Saving user state for user:', this.currentUserId);
     try {
       const state = {
@@ -867,7 +867,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.canvasService.getContext()?.clearRect(0, 0, canvas.width, canvas.height);
 
     // Animationen zeichnen (delegated to CanvasService)
-    this.canvasService.drawWaterBackground();
+    this.canvasService.drawWaterBackground(this.dirtLevel / 100);
     this.canvasService.drawCausticEffect(this.waveOffset);
     this.canvasService.drawWaterParticles(this.particleService.getParticles());
     // draw non-plant decorations (stones, corals)
@@ -876,7 +876,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.canvasService.drawPlants(this.plants, this.decorationService.plantTypes, this.waveOffset);
     // update and draw fish
     this.updateFish();
-    this.canvasService.drawFish(this.fish);
+    this.canvasService.drawFish(this.fish, this.dirtLevel / 100);
 
     // draw dirt effects (turbidity overlay) and visible stains on glass
     try {
@@ -925,7 +925,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         // Penalty scales from 0% at dirtLevel=0 to 75% at dirtLevel=100
         const dirtPenalty = Math.min(0.75, this.dirtLevel / 100 * 0.75);
         const pointsAfterPenalty = Math.round(pointsToAdd * (1 - dirtPenalty));
-        
+
         this.points += pointsAfterPenalty;
         // track on-fish earned points
         fish.pointsEarned = (fish.pointsEarned || 0) + pointsAfterPenalty;
@@ -943,7 +943,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
   private applyPassiveCleaning(): void {
     const now = Date.now();
-    
+
     // Initialize timestamp on first call
     if (!this.lastCleaningUpdate) {
       this.lastCleaningUpdate = now;
@@ -961,6 +961,28 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
 
+    // --- NEW: Fische erzeugen über Zeit Schmutz ---
+    try {
+      if (this.fish.length > 0) {
+        // convert seconds to minutes for DirtService API
+        const dtMin = deltaSeconds / 60;
+        // feedResidue = 0 (no feed), fishCount = this.fish.length
+        this.dirtService.applyFishInfluence(this.fish.length, 0, dtMin);
+
+        // Occasionally spawn a visible stain where a fish is (small chance per frame scaled by fish count)
+        const stainChancePerSecondPerFish = 0.02; // tuning: 0.02 chance per fish per second
+        const spawnProb = Math.min(0.25, this.fish.length * deltaSeconds * stainChancePerSecondPerFish);
+        if (Math.random() < spawnProb) {
+          const f = this.fish[Math.floor(Math.random() * this.fish.length)];
+          const nx = Math.max(0, Math.min(1, (f.x / canvasWidth) + (Math.random() - 0.5) * 0.06));
+          const ny = Math.max(0, Math.min(1, (f.y / canvasHeight) + (Math.random() - 0.5) * 0.03));
+          this.dirtService.spawnStainsAt(nx, ny, 1);
+        }
+      }
+    } catch (e) {
+      console.warn('Fish-generated dirt update failed', e);
+    }
+
     // Active cleaning by cleaner fish - they clean like the brush/sponge as they swim
     const cleaningThrottle = 50; // Spawn bubbles every 50ms for continuous stream
     this.fish.forEach(fish => {
@@ -969,10 +991,13 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         const nx = fish.x / canvasWidth;
         const ny = fish.y / canvasHeight;
         const cleanRadiusPx = fish.size * 2.5; // Good cleaning radius
-        
-        // Use the same cleanArea method as the brush for consistent cleaning
-        const cleaned = this.dirtService.cleanArea(nx, ny, cleanRadiusPx, canvasWidth, canvasHeight, 0.25, deltaSeconds);
-        
+
+        // Use a tunable cleaning strength (per-second) defined on the component
+        // and call cleanArea with reduceWater = false so cleaner fish remove visible stains
+        // but do not aggressively lower the global dirtLevel
+        const strength = this.CLEANER_FISH_CLEANING_RATE; // per second strength
+        const cleaned = this.dirtService.cleanArea(nx, ny, cleanRadiusPx, canvasWidth, canvasHeight, strength, deltaSeconds, false);
+
         // Always spawn LOTS of bubbles for cleaner fish like sponge!
         const nowMs = Date.now();
         if (!fish.lastCleaningParticles || nowMs - fish.lastCleaningParticles > cleaningThrottle) {
@@ -980,10 +1005,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
           // Spawn many bubbles like sponge brush
           this.particleService.spawnCleaningParticles(fish.x, fish.y, 8);
         }
-        
+
         // Log when cleaning happens
         if (cleaned > 0.01) {
-          console.log(`🧹 Putzfisch reinigt! Position: (${Math.round(fish.x)}, ${Math.round(fish.y)}), Schmutz: ${(cleaned * 100).toFixed(2)}%, Stains: ${this.dirtStains.length}, DirtLevel: ${this.dirtLevel.toFixed(1)}`);
+          console.log(`🧹 Putzfisch reinigt (stains only). Position: (${Math.round(fish.x)}, ${Math.round(fish.y)}), Schmutz entfernt: ${(cleaned * 100).toFixed(2)}%, Stains: ${this.dirtStains.length}, DirtLevel: ${this.dirtLevel.toFixed(1)}`);
         }
       }
     });
@@ -992,7 +1017,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     const plantCleaning = this.plants.length * this.PLANT_CLEANING_RATE * deltaSeconds;
     if (plantCleaning > 0 && this.dirtLevel > 0) {
       this.dirtLevel = Math.max(0, this.dirtLevel - plantCleaning);
-      
+
       // Plants occasionally remove random stains
       if (this.dirtStains.length > 0 && Math.random() < 0.03) {
         const randomIndex = Math.floor(Math.random() * this.dirtStains.length);
@@ -1166,14 +1191,14 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       // not logged in - keep changes local
       return;
     }
-    
+
     // Debounce: prevent saving too frequently
     const now = Date.now();
     if (now - this.lastSaveTime < this.MIN_SAVE_INTERVAL_MS) {
       return; // Skip silent save if too soon
     }
     this.lastSaveTime = now;
-    
+
     try {
       const state = {
         lightIntensity: this.lightIntensity,

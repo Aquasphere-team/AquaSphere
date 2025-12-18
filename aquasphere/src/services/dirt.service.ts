@@ -25,9 +25,11 @@ export class DirtService {
   private pendingSaveHandle: any = null;
 
   // config (tweakable)
-  private readonly dirtRatePerFishPerMin = 2.0; // per fish per minute
+  // per fish per minute: increased to make fish presence noticeably affect water turbidity
+  private readonly dirtRatePerFishPerMin = 4.0; // per fish per minute (tuned)
   private readonly dirtRateFromFeed = 0.1; // feed residue weight
-  private readonly naturalDecayPerMin = 0.01; // natural cleanup
+  // disable natural cleanup over time; cleaning should only happen via brush or cleaner fish
+  private readonly naturalDecayPerMin = 0.0; // natural cleanup disabled
 
   private state: DirtState = {
     dirtLevel: 0,
@@ -112,37 +114,41 @@ export class DirtService {
   }
 
   // Clean area with brush in normalized coords. radiusPx is in canvas pixels; we require canvas size to convert.
-  cleanArea(normalizedX: number, normalizedY: number, radiusPx: number, canvasWidth: number, canvasHeight: number, strength = 0.5, dtSec = 0.016) {
-    // convert px radius to normalized
-    const rn = radiusPx / Math.max(1, Math.max(canvasWidth, canvasHeight));
-    const removeAmount = strength * (dtSec); // per frame removal multiplier
-    let cleaned = 0;
-    this.state.dirtStains = this.state.dirtStains.map(s => ({ ...s }));
-    for (let i = this.state.dirtStains.length - 1; i >= 0; i--) {
-      const s = this.state.dirtStains[i];
-      const dx = s.x - normalizedX; const dy = s.y - normalizedY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist <= rn + (s.radius / Math.max(canvasWidth, canvasHeight))) {
-        // reduce amount proportional to proximity
-        const prox = 1 - Math.min(1, dist / (rn + (s.radius / Math.max(canvasWidth, canvasHeight))));
-        const reduce = removeAmount * prox;
-        s.amount = Math.max(0, s.amount - reduce);
-        cleaned += reduce;
-        if (s.amount <= 0.02) {
-          this.state.dirtStains.splice(i, 1);
-        } else {
-          this.state.dirtStains[i] = s;
-        }
-      }
-    }
-    // reduce global dirt proportionally (small effect)
-    if (cleaned > 0) {
+  // If reduceWater is true (default), a small portion of global dirtLevel is reduced; if false only stains are cleaned.
+  cleanArea(normalizedX: number, normalizedY: number, radiusPx: number, canvasWidth: number, canvasHeight: number, strength = 0.5, dtSec = 0.016, reduceWater = true) {
+     // convert px radius to normalized
+     const rn = radiusPx / Math.max(1, Math.max(canvasWidth, canvasHeight));
+     const removeAmount = strength * (dtSec); // per frame removal multiplier
+     let cleaned = 0;
+     this.state.dirtStains = this.state.dirtStains.map(s => ({ ...s }));
+     for (let i = this.state.dirtStains.length - 1; i >= 0; i--) {
+       const s = this.state.dirtStains[i];
+       const dx = s.x - normalizedX; const dy = s.y - normalizedY;
+       const dist = Math.sqrt(dx * dx + dy * dy);
+       if (dist <= rn + (s.radius / Math.max(canvasWidth, canvasHeight))) {
+         // reduce amount proportional to proximity
+         const prox = 1 - Math.min(1, dist / (rn + (s.radius / Math.max(canvasWidth, canvasHeight))));
+         const reduce = removeAmount * prox;
+         s.amount = Math.max(0, s.amount - reduce);
+         cleaned += reduce;
+         if (s.amount <= 0.02) {
+           this.state.dirtStains.splice(i, 1);
+         } else {
+           this.state.dirtStains[i] = s;
+         }
+       }
+     }
+    // Optionally reduce global dirtLevel; cleaner fish should call with reduceWater=false
+    if (cleaned > 0 && reduceWater) {
       const reduced = Math.min(this.state.dirtLevel, cleaned * 12);
       this.state.dirtLevel = Math.max(0, this.state.dirtLevel - reduced);
       this.emit();
+    } else if (cleaned > 0) {
+      // stains changed but global turbidity unchanged
+      this.emit();
     }
-    return cleaned;
-  }
+     return cleaned;
+   }
 
   cleanAll(amount = 25) {
     this.state.dirtLevel = Math.max(0, this.state.dirtLevel - amount);
@@ -178,4 +184,3 @@ export class DirtService {
     }, 4000);
   }
 }
-
