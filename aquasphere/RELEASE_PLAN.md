@@ -29,115 +29,84 @@
 - ✅ Auth-Overlay für Login/Register
 - ✅ Profile-Button oben links
 
----
-
-## 🎯 Geplante Features (Priorität 1)
-
-### 1. Futter-System mit Fisch-Reaktion ⭐
- 
-**Beschreibung:**
-- Beim Füttern spawnen Futter-Partikel im Aquarium
-- Futter sinkt langsam nach unten
-- Fische schwimmen aktiv zum nächsten Futter
-- Futter verschwindet wenn gefressen
-
-**Technisch:**
-- Neue `FoodParticle` Interface mit x, y, velocity
-- Array `foodParticles: FoodParticle[]`
-- `feedFish()` spawnt 3-5 Partikel an zufälligen Positionen
-- In `animate()`: Futter-Physik + Fisch-Targeting
-- Fische wählen nächstes Futter als Ziel
-- Collision Detection: Futter entfernen wenn Fisch nah genug
-
----
-
-### 2. Hunger-System ⭐
-**Beschreibung:**
-- Jeder Fisch hat Hunger-Level (0-100)
-- Hunger sinkt langsam über Zeit
-- Visueller Indikator: Roter Balken über hungriger Fische (hunger < 30)
-- Füttern erhöht Hunger wieder
-
-**Technisch:**
-- Fish Interface erweitern: `hunger: number` Property
-- In `animate()`: `fish.hunger -= 0.01` (oder Delta-Time basiert)
-- In `drawFish()`: Wenn hunger < 30, roten Balken zeichnen
-- Bei Futter-Kollision: `fish.hunger = Math.min(100, fish.hunger + 20)`
-- State Save/Load berücksichtigt Hunger
+### Advanced Features (Implementiert)
+- ✅ **Futter-System mit Fisch-Reaktion**
+  - ParticleService mit Feed-Partikeln
+  - Futter sinkt und wird von Fischen gefressen
+  - Visuelle Feedback-Effekte
+- ✅ **Hunger-System**
+  - Jeder Fisch hat Hunger-Level (0-100)
+  - Hunger sinkt über Zeit
+  - Visueller Indikator für hungrige Fische
+  - Verhungern nach zu langer Zeit möglich
+- ✅ **Wasserqualität/Schmutz-System**
+  - DirtService für Wassertrübung
+  - Sichtbare Glasflecken (`dirtStains`)
+  - Brush-Modus zum Reinigen
+  - Dirt-Penalty reduziert Punkte-Generierung
+  - Cleaner-Fische (Tier 5) reinigen automatisch
+- ✅ **Fisch-Info Modal**
+  - Klick auf Fisch öffnet Info-Panel
+  - Zeigt Name (editierbar), Hunger, Alter, verdiente Punkte
+  - Auto-Update des Alters
+- ✅ **Zeit- & Statistik-System**
+  - Aquarium-Zeit mit Zeitraffer (1x-16x)
+  - Punkte-System mit Tier-basierter Generierung
+  - Dirt-Penalty Anzeige
+  - Zeit-Display im Header
 
 ---
 
-### 3. Wasserqualität-System
-**Beschreibung:**
-- Wasserqualität verschlechtert sich über Zeit
-- Visuell: Wasser wird grünlicher/trüber wenn dreckig
-- UI-Anzeige: Balken oder Prozent-Wert
-- "Reinigen"-Button setzt Qualität auf 100%
-
-**Technisch:**
-- Variable `waterQuality: number = 100`
-- In `animate()`: `waterQuality -= 0.005` (pro Frame)
-- In `drawWater()`: Farbe basierend auf waterQuality anpassen
-  - 100%: Klares Blau `#0066cc`
-  - 50%: Grünlich `#4d7f5c`
-  - 0%: Dunkelgrün `#2d4a36`
-- `cleanAquarium()`: `this.waterQuality = 100`
-- UI: Kleiner Balken oder Text in Ecke
+## 🎯 Nächste geplante Features (Optional)
 
 ---
 
-### 4. Fisch-Info beim Klick 
-**Beschreibung:**
-- Auf Fisch klicken zeigt kleines Info-Popup
-- Anzeige: Fisch-Typ, Hunger, Alter (Zeit seit Platzierung)
-- Auto-Close nach 3 Sekunden
+## 🎯 Implementierte optionale Features
 
-**Technisch:**
-- Variable `selectedFish: Fish | null = null`
-- Bei Canvas-Click: Prüfe ob Fisch getroffen (Distanz-Check)
-- Popup-Div mit *ngIf im HTML
-- `setTimeout()` zum Auto-Close
-- CSS: Kleines abgerundetes Overlay, semi-transparent
+### 1. Tag/Nacht-Zyklus ✅
+- Automatisches Licht-Dimming basierend auf Uhrzeit
+  - Tag (7:00-19:00): Helles Licht (1.5)
+  - Nacht (21:00-5:00): Gedimmtes Licht (0.3)
+  - Sanfte Übergänge bei Dämmerung/Morgengrauen
+- Fische schwimmen nachts 50% langsamer
+- Toggle-Button 🌓 für Auto/Manuell-Modus
+- Manueller Licht-Schalter weiterhin verfügbar
+
+### 2. Aquarium-Themes ✅
+- 4 verschiedene Themes verfügbar:
+  - **Klassisch**: Original blaues Wasser (immer freigeschaltet)
+  - **Tropical**: Helles Türkis (10x Füttern)
+  - **Tiefsee**: Dunkles Blau (24h Spielzeit)
+  - **Sunset**: Warme Orange/Rosa-Töne (100x Füttern)
+- Theme-Auswahl-Menü mit Vorschau (🎨 Button)
+- Jedes Theme hat eigene Farbverläufe für sauberes/dreckiges Wasser
+- **Themes sind an Achievements gekoppelt** 🔒
+
+### 3. Achievement-System ✅
+- **11 verschiedene Achievements** in 5 Kategorien:
+  - 🐟 Füttern (4 Achievements)
+  - ⏰ Spielzeit (2 Achievements)
+  - 🐠 Fische platzieren (2 Achievements)
+  - 🧽 Reinigen (1 Achievement)
+  - 💰 Punkte sammeln (2 Achievements)
+- **Fortschritts-Tracking** für jedes Achievement
+- **Belohnungssystem**: Themes werden durch Achievements freigeschaltet
+- **Achievement-Panel** (🏆 Button im Profil-Menü)
+  - Zeigt alle Achievements mit Fortschritt
+  - Visuell unterscheidbar (freigeschaltet vs. gesperrt)
+  - Anzeige der Belohnungen
+- **Achievement-Benachrichtigungen** beim Freischalten
+- **Supabase-Integration**: Achievements werden in der Cloud gespeichert
 
 ---
 
-### 5. Statistik-Panel 
-**Beschreibung:**
-- Zeigt Aquarium-Statistiken an
-- Anzahl: Fische, Pflanzen, Dekorationen
-- Total gefüttert (Counter)
-- Session-Zeit
+## 🎯 Verbleibende optionale Features
 
-**Technisch:**
-- Toggle-Button in UI (z.B. "📊" Icon)
-- Variable `showStats: boolean = false`
-- Overlay-Panel mit Stats
-- Counter: `totalFeedCount: number = 0` in `feedFish()` inkrementieren
-- Session-Zeit: `sessionStartTime` in `ngOnInit()`, Differenz berechnen
-
----
-
-## 📋 Optional (Priorität 2)
-
-### 6. Tag/Nacht-Zyklus
-- Licht dimmt automatisch basierend auf echter Uhrzeit
-- Fische schwimmen langsamer nachts
-- Optional: Toggle für manuelle Kontrolle
-
-### 7. Aquarium-Themes/Hintergründe
-- Verschiedene Hintergrund-Designs
-- Auswahl im Settings-Menü
-- Einfach: Gradient-Farben ändern
-
-### 8. Tutorial/Onboarding
-- Beim ersten Start: Kurze Anleitung
-- "Platziere deinen ersten Fisch!"
-- localStorage für "tutorial_completed" Flag
-
-### 9. Achievements (Advanced)
-- Milestone-System
-- z.B. "10 Fische gefüttert", "24h ohne Hunger"
-- Speicherung in Supabase
+### 1. Erweiterte Statistiken
+- Statistik-Panel mit Toggle-Button
+- Total gefüttert Counter (bereits durch Achievements getrackt)
+- Detaillierte Session-Statistiken
+- Übersicht über Aquarium-Inhalte
 
 ---
 
@@ -166,19 +135,30 @@
 
 ---
 
-## 📝 Notizen
+## 📝 Notizen & Nächste Schritte
 
-**Geschätzte Gesamtzeit für Priorität 1 Features:**
+**Status:** Alle Priorität 1 Features sind implementiert! 🎉
 
-**Empfohlene Reihenfolge:**
-1. Futter-System (sofort sichtbarer Effekt)
-2. Hunger-System (baut auf #1 auf)
-3. Wasserqualität (unabhängig, schnell)
-4. Statistik-Panel (einfach, poliert App ab)
-5. Fisch-Info (Nice-to-have Detail)
+**Jetzt verfügbar:**
+- ✅ Futter-System mit animierten Partikeln
+- ✅ Hunger-System mit Sterbe-Mechanik
+- ✅ Schmutz-System mit Brush-Reinigung
+- ✅ Fisch-Info mit editierbaren Namen
+- ✅ Zeit-System mit Zeitraffer
+- ✅ Punkte-System mit Tier-Multiplikatoren
+- ✅ Cleaner-Fische (Tier 5)
+- ✅ Tag/Nacht-Zyklus mit Auto-Modus
+- ✅ 4 Theme-Varianten (freigeschaltet durch Achievements)
+- ✅ Achievement-System mit 11 Achievements und Belohnungen
 
-**Nächste Schritte:**
-1. Entscheiden welche Features definitiv ins Release sollen
-2. Features einzeln implementieren und testen
-3. Git Commit nach jedem fertigen Feature
-4. Final Testing vor Release
+**Empfohlene nächste Schritte:**
+1. ✅ Alle Kern-Features testen
+2. Release Checklist durchgehen
+3. Optional: Weitere Features aus der Liste implementieren
+4. Deployment vorbereiten
+
+**Vor dem finalen Release:**
+- Code-Review und Cleanup
+- Cross-Browser Testing
+- Performance-Optimierung
+- Dokumentation vervollständigen

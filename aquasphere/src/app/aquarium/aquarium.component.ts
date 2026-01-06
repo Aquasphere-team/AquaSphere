@@ -11,6 +11,8 @@ import { ParticleService } from '../../services/particle.service';
 import { DirtService } from '../../services/dirt.service';
 import { OnboardingService } from '../../services/onboarding.service';
 import { OnboardingComponent } from '../onboarding/onboarding.component';
+import { AchievementService } from '../../services/achievement.service';
+import { Achievement } from '../../models/achievement.model';
 
 @Component({
   selector: 'app-aquarium',
@@ -31,6 +33,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     , private dirtService: DirtService
     , private cdr: ChangeDetectorRef
     , private onboarding: OnboardingService
+    , private achievementService: AchievementService
   ) {}
 
   // state
@@ -39,6 +42,19 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   private animationId?: number;
   private waveOffset = 0;
   private lightIntensity = 1;
+
+  // day/night cycle
+  autoDayNight = true; // toggle for automatic day/night
+  private baseLightIntensity = 1; // remembers manual setting when auto is off
+
+  // themes
+  currentTheme: 'classic' | 'tropical' | 'deep' | 'sunset' = 'classic';
+  showThemeMenu = false;
+
+  // achievements
+  showAchievements = false;
+  achievementNotification: Achievement | null = null;
+  private achievementNotificationTimeout?: number;
 
   // auth state
   inScreenMenu = false;
@@ -473,6 +489,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     const canvasHeight = canvas.height || 600;
     this.fishService.addFish(type, x, y, canvasWidth, canvasHeight);
     this.fish = this.fishService.fish;
+    
+    // Track achievement
+    const unlocked = this.achievementService.incrementFishPlaced();
+    this.showAchievementNotifications(unlocked);
   }
 
   private canvasClickHandler = (ev: PointerEvent) => {
@@ -786,7 +806,11 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         // persist dirt state as part of the aquarium JSON
         dirtLevel: this.dirtLevel,
         dirtLastUpdated: this.dirtLastUpdated,
-        dirtStains: this.dirtStains
+        dirtStains: this.dirtStains,
+        // persist achievements and theme
+        achievements: this.achievementService.getState(),
+        currentTheme: this.currentTheme,
+        autoDayNight: this.autoDayNight
       };
       console.log('State to save:', state);
       await this.supabaseService.saveAquariumState(this.currentUserId, state);
@@ -837,6 +861,16 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         if (Array.isArray(state.dirtStains)) this.dirtStains = state.dirtStains;
         console.log(`🔄 Dirt State geladen: Level=${this.dirtLevel.toFixed(1)}, Stains=${this.dirtStains.length}`);
 
+        // load achievements
+        if (state.achievements) {
+          this.achievementService.loadState(state.achievements);
+          console.log('🏆 Achievements geladen');
+        }
+
+        // load theme
+        if (state.currentTheme) this.currentTheme = state.currentTheme;
+        if (state.autoDayNight !== undefined) this.autoDayNight = state.autoDayNight;
+
         // start dirt service with loaded state
         try {
           if (this.currentUserId) {
@@ -862,12 +896,21 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     const canvasWidth = canvas.width;
     const canvasHeight = canvas.height;
 
+    // Calculate speed modifier based on light intensity (night = slower)
+    // lightIntensity ranges from ~0.3 (night) to ~1.5 (day)
+    // Speed modifier: 0.5 at night, 1.0 at day
+    const speedModifier = this.lightIntensity < 0.6 ? 0.5 : 1.0;
+    const adjustedTimeSpeed = this.timeSpeed * speedModifier;
+
     // delegate heavy logic to fishService which mutates this.fish in place
-    this.fishService.updateFish(this.fish, this.particleService.getParticles(), this.fishService.fishTypes, canvasWidth, canvasHeight, this.timeSpeed, this.dirtStains);
+    this.fishService.updateFish(this.fish, this.particleService.getParticles(), this.fishService.fishTypes, canvasWidth, canvasHeight, adjustedTimeSpeed, this.dirtStains);
   }
 
   private animate(): void {
     if (!this.isRunning) return;
+
+    // Update day/night cycle
+    this.updateDayNightCycle();
 
     // Update aquarium time if started
     if (this.aquariumStartTime) {
@@ -882,7 +925,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.canvasService.getContext()?.clearRect(0, 0, canvas.width, canvas.height);
 
     // Animationen zeichnen (delegated to CanvasService)
-    this.canvasService.drawWaterBackground(this.dirtLevel / 100);
+    this.canvasService.drawWaterBackground(this.dirtLevel / 100, this.currentTheme);
     this.canvasService.drawCausticEffect(this.waveOffset);
     this.canvasService.drawWaterParticles(this.particleService.getParticles());
     // draw non-plant decorations (stones, corals)
@@ -906,6 +949,14 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Passive cleaning from cleaner fish and plants
     this.applyPassiveCleaning();
+
+    // Update achievement progress
+    if (this.aquariumStartTime) {
+      const unlocked = this.achievementService.updatePlayTime(this.currentAquariumTime);
+      this.showAchievementNotifications(unlocked);
+    }
+    const pointsUnlocked = this.achievementService.updateTotalPoints(this.points);
+    this.showAchievementNotifications(pointsUnlocked);
 
     // draw surface waves and light via service
     this.canvasService.drawSurfaceWaves(this.waveOffset);
@@ -1065,6 +1116,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.particleService.addFeedBurst(10, 50, 750);
     this.points -= this.FEED_COST;
 
+    // Track achievement
+    const unlocked = this.achievementService.incrementFeedCount();
+    this.showAchievementNotifications(unlocked);
+
     // spawn some stains where feed will land (randomized across the width, just under surface)
     try {
       const canvas = this.canvasRef.nativeElement;
@@ -1095,7 +1150,107 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
   toggleLight(): void {
     console.log('💡 Licht umgeschaltet!');
-    this.lightIntensity = this.lightIntensity > 0.5 ? 0.2 : 1.5;
+    if (this.autoDayNight) {
+      // Disable auto and set manual light
+      this.autoDayNight = false;
+      this.baseLightIntensity = this.lightIntensity > 0.5 ? 0.2 : 1.5;
+      this.lightIntensity = this.baseLightIntensity;
+      this.showMessage('Tag/Nacht-Auto: AUS');
+    } else {
+      this.baseLightIntensity = this.baseLightIntensity > 0.5 ? 0.2 : 1.5;
+      this.lightIntensity = this.baseLightIntensity;
+    }
+  }
+
+  toggleAutoDayNight(): void {
+    this.autoDayNight = !this.autoDayNight;
+    if (this.autoDayNight) {
+      this.showMessage('Tag/Nacht-Auto: EIN');
+    } else {
+      this.showMessage('Tag/Nacht-Auto: AUS');
+      this.baseLightIntensity = this.lightIntensity;
+    }
+  }
+
+  private updateDayNightCycle(): void {
+    if (!this.autoDayNight) return;
+
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const timeOfDay = hours + minutes / 60;
+
+    // Day time: 6:00 - 20:00 (full light)
+    // Night time: 20:00 - 6:00 (dimmed light)
+    // Smooth transitions at dawn (5:00-7:00) and dusk (19:00-21:00)
+
+    if (timeOfDay >= 7 && timeOfDay < 19) {
+      // Full day
+      this.lightIntensity = 1.5;
+    } else if (timeOfDay >= 21 || timeOfDay < 5) {
+      // Full night
+      this.lightIntensity = 0.3;
+    } else if (timeOfDay >= 5 && timeOfDay < 7) {
+      // Dawn (5:00 - 7:00)
+      const t = (timeOfDay - 5) / 2; // 0 to 1
+      this.lightIntensity = 0.3 + (1.2 * t); // 0.3 to 1.5
+    } else if (timeOfDay >= 19 && timeOfDay < 21) {
+      // Dusk (19:00 - 21:00)
+      const t = (timeOfDay - 19) / 2; // 0 to 1
+      this.lightIntensity = 1.5 - (1.2 * t); // 1.5 to 0.3
+    }
+  }
+
+  // Theme management
+  selectTheme(theme: 'classic' | 'tropical' | 'deep' | 'sunset'): void {
+    // Check if theme is unlocked
+    if (!this.achievementService.isThemeUnlocked(theme)) {
+      this.showMessage(`Theme gesperrt! Schalte Achievements frei.`);
+      return;
+    }
+    this.currentTheme = theme;
+    this.showThemeMenu = false;
+    this.showMessage(`Theme: ${theme}`);
+  }
+
+  toggleThemeMenu(): void {
+    this.showThemeMenu = !this.showThemeMenu;
+  }
+
+  toggleAchievements(): void {
+    this.showAchievements = !this.showAchievements;
+  }
+
+  getAchievements() {
+    return this.achievementService.getAchievements();
+  }
+
+  isThemeUnlocked(theme: string): boolean {
+    return this.achievementService.isThemeUnlocked(theme);
+  }
+
+  private showAchievementNotifications(achievements: Achievement[]): void {
+    if (achievements.length === 0) return;
+
+    // Show first achievement notification
+    const achievement = achievements[0];
+    this.achievementNotification = achievement;
+
+    if (this.achievementNotificationTimeout) {
+      clearTimeout(this.achievementNotificationTimeout);
+    }
+
+    this.achievementNotificationTimeout = window.setTimeout(() => {
+      this.achievementNotification = null;
+    }, 5000);
+
+    // Show message with reward if any
+    if (achievement.reward?.startsWith('theme:')) {
+      const themeName = achievement.reward.split(':')[1];
+      this.showMessage(`🏆 ${achievement.name} - ${themeName.toUpperCase()} Theme freigeschaltet!`, 4000);
+    } else {
+      this.showMessage(`🏆 Achievement: ${achievement.name}`, 3000);
+    }
   }
 
   cleanAquarium(): void {
@@ -1175,6 +1330,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
        } catch (e) { /* ignore */ }
 
        if (cleaned > 0) {
+         // Track cleaning achievement
+         const unlocked = this.achievementService.incrementCleaningActions();
+         this.showAchievementNotifications(unlocked);
+         
          // spawn small cleaning particles for feedback (throttled)
          const nowMs = Date.now();
          if (nowMs - this.lastSpawnFeedback > 80) {

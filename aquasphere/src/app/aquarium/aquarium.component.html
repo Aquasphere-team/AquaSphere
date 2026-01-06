@@ -42,11 +42,73 @@
             <!-- In-screen controls (animated): use class binding so CSS transitions apply -->
             <div class="in-screen-controls" [class.open]="inScreenMenu">
               <button class="control-btn feed-btn" (click)="feedFish()" [title]="'Füttern (' + FEED_COST + ' Punkte)'">🐟</button>
-              <button class="control-btn light-btn" (click)="toggleLight()" title="Licht umschalten (kostenlos)">💡</button>
+              <button class="control-btn light-btn" (click)="toggleLight()" title="Licht umschalten">💡</button>
+              <button class="control-btn daynight-btn" (click)="toggleAutoDayNight()" [class.active]="autoDayNight" title="Tag/Nacht-Auto">🌓</button>
+              <button class="control-btn theme-btn" (click)="toggleThemeMenu()" title="Theme wechseln">🎨</button>
               <button class="control-btn clean-btn" (click)="toggleBrush()" title="Reinigungsmodus (Bürste)">🧽</button>
               <button class="control-btn deco-btn" (click)="toggleDecorationPalette()" title="Dekorationen platzieren">🪴</button>
               <button class="control-btn fish-btn" (click)="toggleFishPalette()" title="Fisch platzieren">🐠</button>
               <button class="control-btn remove-btn" [class.active]="removeMode" (click)="toggleRemoveMode()" title="Löschmodus (kostenlos)">🗑️</button>
+            </div>
+
+            <!-- Theme selection menu -->
+            <div class="theme-menu" *ngIf="showThemeMenu">
+              <div class="theme-menu-header">
+                <h4>Theme wählen</h4>
+                <button class="close-btn" (click)="toggleThemeMenu()">✕</button>
+              </div>
+              <div class="theme-options">
+                <button class="theme-option" 
+                        [class.active]="currentTheme === 'classic'" 
+                        [class.locked]="!isThemeUnlocked('classic')"
+                        (click)="selectTheme('classic')">
+                  <div class="theme-preview classic"></div>
+                  <span>Klassisch</span>
+                  <span class="lock-icon" *ngIf="!isThemeUnlocked('classic')">🔒</span>
+                </button>
+                <button class="theme-option" 
+                        [class.active]="currentTheme === 'tropical'" 
+                        [class.locked]="!isThemeUnlocked('tropical')"
+                        (click)="selectTheme('tropical')">
+                  <div class="theme-preview tropical"></div>
+                  <span>Tropical</span>
+                  <span class="lock-icon" *ngIf="!isThemeUnlocked('tropical')">🔒</span>
+                </button>
+                <button class="theme-option" 
+                        [class.active]="currentTheme === 'deep'" 
+                        [class.locked]="!isThemeUnlocked('deep')"
+                        (click)="selectTheme('deep')">
+                  <div class="theme-preview deep"></div>
+                  <span>Tiefsee</span>
+                  <span class="lock-icon" *ngIf="!isThemeUnlocked('deep')">🔒</span>
+                </button>
+                <button class="theme-option" 
+                        [class.active]="currentTheme === 'sunset'" 
+                        [class.locked]="!isThemeUnlocked('sunset')"
+                        (click)="selectTheme('sunset')">
+                  <div class="theme-preview sunset"></div>
+                  <span>Sunset</span>
+                  <span class="lock-icon" *ngIf="!isThemeUnlocked('sunset')">🔒</span>
+                </button>
+              </div>
+              <div class="theme-hint">
+                <small>🏆 Schalte Themes durch Achievements frei!</small>
+              </div>
+            </div>
+
+            <!-- Achievement notification -->
+            <div class="achievement-notification" *ngIf="achievementNotification">
+              <div class="achievement-card">
+                <div class="achievement-icon">{{ achievementNotification.icon }}</div>
+                <div class="achievement-content">
+                  <h4>🏆 Achievement freigeschaltet!</h4>
+                  <p class="achievement-name">{{ achievementNotification.name }}</p>
+                  <p class="achievement-desc">{{ achievementNotification.description }}</p>
+                  <p class="achievement-reward" *ngIf="achievementNotification.reward">
+                    Belohnung: <strong>{{ achievementNotification.reward.split(':')[1].toUpperCase() }}</strong> Theme
+                  </p>
+                </div>
+              </div>
             </div>
 
             <!-- Exit button entfernt - nur noch Handy-Version -->
@@ -93,6 +155,7 @@
                       <button class="control-btn primary" (click)="login()" *ngIf="!currentUser && !showRegister">Anmelden</button>
                       <button class="control-btn" (click)="showRegister = true" *ngIf="!currentUser && !showRegister">Zur Registrierung</button>
                       <button class="control-btn" (click)="saveUserState()" *ngIf="currentUser">Speichern</button>
+                      <button class="control-btn" (click)="toggleAchievements()" *ngIf="currentUser">🏆 Achievements</button>
                       <button class="control-btn" (click)="logout()" *ngIf="currentUser">Abmelden</button>
                       <!-- Onboarding button shown inside profile dialog so user can reopen it anytime -->
                       <button class="control-btn" (click)="openOnboarding()">Onboarding anzeigen</button>
@@ -101,6 +164,44 @@
                 </div>
               </div>
             </ng-container>
+
+            <!-- Achievement Panel -->
+            <div class="achievement-panel" *ngIf="showAchievements" (click)="toggleAchievements()">
+              <div class="achievement-panel-card" (click)="$event.stopPropagation()">
+                <div class="achievement-panel-header">
+                  <h3>🏆 Achievements</h3>
+                  <button class="close-btn" (click)="toggleAchievements()">✕</button>
+                </div>
+                <div class="achievement-panel-body">
+                  <div *ngFor="let achievement of getAchievements()" 
+                       class="achievement-item"
+                       [class.unlocked]="achievement.unlocked">
+                    <div class="achievement-item-icon">{{ achievement.icon }}</div>
+                    <div class="achievement-item-content">
+                      <h4>{{ achievement.name }}</h4>
+                      <p>{{ achievement.description }}</p>
+                      <div class="achievement-progress">
+                        <div class="progress-bar">
+                          <div class="progress-fill" 
+                               [style.width.%]="(achievement.progress / achievement.requirement * 100)"></div>
+                        </div>
+                        <span class="progress-text">{{ achievement.progress }} / {{ achievement.requirement }}</span>
+                      </div>
+                      <p class="achievement-reward" *ngIf="achievement.reward && achievement.unlocked">
+                        ✨ {{ achievement.reward.split(':')[1].toUpperCase() }} Theme freigeschaltet!
+                      </p>
+                      <p class="achievement-reward locked" *ngIf="achievement.reward && !achievement.unlocked">
+                        🔒 Belohnung: {{ achievement.reward.split(':')[1].toUpperCase() }} Theme
+                      </p>
+                    </div>
+                    <div class="achievement-status">
+                      <span *ngIf="achievement.unlocked" class="check">✅</span>
+                      <span *ngIf="!achievement.unlocked" class="lock">🔒</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             <!-- Onboarding component (standalone) -->
             <app-onboarding></app-onboarding>

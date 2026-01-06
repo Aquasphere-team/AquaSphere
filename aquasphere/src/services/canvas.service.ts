@@ -65,7 +65,7 @@ export class CanvasService {
   // Drawing routines use the internal ctx and canvas; component supplies data arrays
   // Draws the water background. If dirtRatio is provided (0..1) the water color is
   // subtly shifted towards a greenish tint to simulate turbidity/tinting.
-  drawWaterBackground(dirtRatio = 0): void {
+  drawWaterBackground(dirtRatio = 0, theme: 'classic' | 'tropical' | 'deep' | 'sunset' = 'classic'): void {
     if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx; const canvas = this.canvas;
 
@@ -81,15 +81,51 @@ export class CanvasService {
       const bv = b[i] ?? 0; const out = av * (1 - f) + bv * f; return i < 3 ? Math.round(out) : +(out.toFixed(2));
     });
 
-    // Base gradient stops (clean water)
-    const baseStops: number[][] = [
-      [135,206,235,0.2], [100,170,210,0.33], [70,130,180,0.42], [40,90,150,0.55], [18,40,110,0.7], [6,20,60,0.82], [0,6,30,0.9]
-    ];
+    // Base gradient stops based on theme
+    let baseStops: number[][] = [];
+    let dirtyStops: number[][] = [];
 
-    // Dirty variants (greener/darker)
-    const dirtyStops: number[][] = [
-      [140,210,150,0.22], [110,185,150,0.34], [80,150,130,0.45], [50,110,95,0.58], [30,70,60,0.72], [20,45,38,0.85], [12,28,18,0.95]
-    ];
+    switch (theme) {
+      case 'classic':
+        // Original blue water
+        baseStops = [
+          [135,206,235,0.2], [100,170,210,0.33], [70,130,180,0.42], [40,90,150,0.55], [18,40,110,0.7], [6,20,60,0.82], [0,6,30,0.9]
+        ];
+        dirtyStops = [
+          [140,210,150,0.22], [110,185,150,0.34], [80,150,130,0.45], [50,110,95,0.58], [30,70,60,0.72], [20,45,38,0.85], [12,28,18,0.95]
+        ];
+        break;
+      
+      case 'tropical':
+        // Bright turquoise water
+        baseStops = [
+          [64,224,208,0.2], [72,209,204,0.33], [0,206,209,0.42], [32,178,170,0.55], [0,139,139,0.7], [0,100,100,0.82], [0,60,60,0.9]
+        ];
+        dirtyStops = [
+          [100,220,180,0.22], [85,200,170,0.34], [70,170,150,0.45], [50,130,110,0.58], [35,90,75,0.72], [25,60,50,0.85], [15,35,30,0.95]
+        ];
+        break;
+      
+      case 'deep':
+        // Dark deep ocean
+        baseStops = [
+          [25,25,112,0.2], [0,0,139,0.33], [0,0,128,0.42], [0,0,100,0.55], [0,0,80,0.7], [0,0,50,0.82], [0,0,20,0.9]
+        ];
+        dirtyStops = [
+          [40,60,100,0.22], [30,50,90,0.34], [25,40,75,0.45], [20,30,60,0.58], [15,20,45,0.72], [10,15,30,0.85], [5,10,15,0.95]
+        ];
+        break;
+      
+      case 'sunset':
+        // Warm orange/pink tones
+        baseStops = [
+          [255,182,193,0.2], [255,160,122,0.33], [255,140,105,0.42], [220,110,85,0.55], [180,80,60,0.7], [130,50,40,0.82], [80,30,25,0.9]
+        ];
+        dirtyStops = [
+          [240,180,150,0.22], [220,150,120,0.34], [190,120,95,0.45], [150,90,70,0.58], [110,60,45,0.72], [70,40,30,0.85], [40,25,20,0.95]
+        ];
+        break;
+    }
 
     const mixedStops = baseStops.map((bs, i) => lerpRGBA(bs, dirtyStops[i], t));
 
