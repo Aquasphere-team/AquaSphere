@@ -105,8 +105,8 @@ export class DirtService {
         createdAt: Date.now()
       };
       this.state.dirtStains.push(stain);
-      // keep cap
-      if (this.state.dirtStains.length > 200) this.state.dirtStains.shift();
+      // Performance: Limit auf 50 statt 200
+      if (this.state.dirtStains.length > 50) this.state.dirtStains.shift();
     }
     // small bump to global turbidity when stains are created
     this.state.dirtLevel = Math.min(100, this.state.dirtLevel + 0.5 * count);

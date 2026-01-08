@@ -65,9 +65,19 @@ export class CanvasService {
   // Drawing routines use the internal ctx and canvas; component supplies data arrays
   // Draws the water background. If dirtRatio is provided (0..1) the water color is
   // subtly shifted towards a greenish tint to simulate turbidity/tinting.
-  drawWaterBackground(dirtRatio = 0): void {
+  private lastBackgroundDirt = -1;
+  private backgroundCache: ImageData | null = null;
+
+  drawWaterBackground(dirtRatio: number): void {
     if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx; const canvas = this.canvas;
+
+    // Performance: Cache background if dirt hasn't changed much
+    const dirtChanged = Math.abs(dirtRatio - this.lastBackgroundDirt) > 0.01; // 1% Änderung
+    if (!dirtChanged && this.backgroundCache) {
+      ctx.putImageData(this.backgroundCache, 0, 0);
+      return;
+    }
 
     // clamp
     const v = Math.max(0, Math.min(1, dirtRatio));
@@ -102,6 +112,10 @@ export class CanvasService {
 
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Cache the background
+    this.lastBackgroundDirt = dirtRatio;
+    this.backgroundCache = ctx.getImageData(0, 0, canvas.width, canvas.height);
   }
 
   drawCausticEffect(waveOffset: number): void {
@@ -109,9 +123,10 @@ export class CanvasService {
     const ctx = this.ctx; const canvas = this.canvas;
     const time = Date.now() * 0.001 + waveOffset * 0.02;
 
-    ctx.globalAlpha = 0.2;
+    ctx.globalAlpha = 0.15; // Reduziert von 0.2
 
-    for (let i = 0; i < 12; i++) {
+    // Performance: Nur 6 statt 12 Caustics
+    for (let i = 0; i < 6; i++) {
       const phase = i * 0.5;
       const x = (Math.sin(time * 0.8 + phase) * 0.4 + 0.5) * canvas.width;
       const y = (Math.cos(time * 1.1 + phase) * 0.35 + 0.45) * canvas.height;
@@ -119,9 +134,9 @@ export class CanvasService {
       const size = 60 + Math.sin(time * 2 + phase) * 30;
 
       const causticGradient = ctx.createRadialGradient(x, y, 0, x, y, size);
-      causticGradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-      causticGradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.4)');
-      causticGradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.1)');
+      causticGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)'); // Reduziert
+      causticGradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.3)'); // Reduziert
+      causticGradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.08)'); // Reduziert
       causticGradient.addColorStop(1, 'transparent');
 
       ctx.beginPath();
@@ -313,25 +328,15 @@ export class CanvasService {
       ctx.save();
       if (d.type.startsWith('stone')) {
         const base = rectWidth * 0.04 * (d.scale || 1);
-        const noise = (Math.sin(px * 0.01) + Math.cos(py * 0.01)) * 0.12;
-        const size = Math.max(6, base * (0.9 + noise));
+        const size = Math.max(6, base);
 
-        for (let k = 0; k < 3; k++) {
-          const offX = (rand(seed + k * 11) - 0.5) * size * 0.36;
-          const offY = (rand(seed + k * 23) - 0.5) * size * 0.22;
-          const rx = size * (0.95 + k * 0.22);
-          const ry = size * (0.62 + k * 0.18);
+        // Performance: Einfache Ellipsen statt Gradienten
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.ellipse(px, py, size, size * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
 
-          const g = ctx.createRadialGradient(px + offX - rx * 0.18, py + offY - ry * 0.18, 0, px + offX, py + offY, Math.max(rx, ry) * 1.5);
-          g.addColorStop(0, this.lightenColor(color, 0.06));
-          g.addColorStop(1, this.darkenColor(color, 0.22));
-
-          ctx.beginPath();
-          ctx.fillStyle = g;
-          ctx.ellipse(px + offX, py + offY, rx, ry, (k - 1) * 0.18, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
+        // Schatten
         ctx.globalAlpha = 0.18;
         ctx.fillStyle = 'rgba(0,0,0,0.36)';
         ctx.beginPath();
@@ -341,22 +346,22 @@ export class CanvasService {
 
       } else if (d.type.startsWith('coral')) {
         const size = Math.max(12, rectWidth * 0.045 * (d.scale || 1));
-        const branches = 3 + Math.floor((d.scale || 1) * 2);
+        const branches = Math.min(3, 2 + Math.floor((d.scale || 1))); // Max 3 branches
         const strokeColor = this.darkenColor(color, 0.12);
 
         for (let b = 0; b < branches; b++) {
           const angleBase = (b - (branches - 1) / 2) * 0.45;
-          const angleJitter = (rand(seed + b * 13) - 0.5) * 0.12;
-          const angle = angleBase + angleJitter + Math.sin(waveOffset * 0.12 + seed * 0.0005) * 0.06;
-          const length = size * (1 + rand(seed + b * 17) * 0.35);
+          const angle = angleBase;
+          const length = size;
 
           ctx.beginPath();
           ctx.moveTo(px, py);
           let sx = px; let sy = py;
-          for (let seg = 0; seg < 4; seg++) {
-            const nx = sx + Math.cos(angle + seg * 0.12) * (length * 0.28);
-            const ny = sy - Math.abs(Math.sin(angle)) * (length * 0.28) - seg * (length * 0.17);
-            const cx = sx + (nx - sx) * 0.5 + (rand(seed + seg * 29 + b * 7) - 0.5) * size * 0.14;
+          // Reduziert von 4 auf 2 Segmente
+          for (let seg = 0; seg < 2; seg++) {
+            const nx = sx + Math.cos(angle) * (length * 0.35);
+            const ny = sy - Math.abs(Math.sin(angle)) * (length * 0.35) - seg * (length * 0.25);
+            const cx = sx + (nx - sx) * 0.5;
             const cy = sy + (ny - sy) * 0.5 + (rand(seed + seg * 31 + b * 11) - 0.5) * size * 0.08;
             ctx.quadraticCurveTo(cx, cy, nx, ny);
             sx = nx; sy = ny;
@@ -431,20 +436,20 @@ export class CanvasService {
         ctx.lineTo(0, -size * 0.9);
         ctx.stroke();
 
-        for (let i = 0; i < 6; i++) {
+        // Performance: Reduziert von 6*8=48 Gradienten auf 4*5=20
+        for (let i = 0; i < 4; i++) {
           const length = size * (0.7 + i * 0.18);
           const sway = Math.sin(waveOffset * 1.2 + i) * (3 + i * 1.6);
-          for (let j = 0; j < 8; j++) {
-            const y = - (j / 8) * length;
+          // Reduziert von 8 auf 5 leaves per strand
+          for (let j = 0; j < 5; j++) {
+            const y = - (j / 5) * length;
             const x = sway + Math.sin(j * 0.6 + waveOffset) * (5 + i);
             const leafW = size * (0.14 + i * 0.02);
             const leafH = length * 0.08;
-            const g = ctx.createLinearGradient(x - leafW, y - leafH, x + leafW, y + leafH);
-            g.addColorStop(0, this.darkenColor(color, 0.05));
-            g.addColorStop(1, color);
+            // Performance: Verwende einfache Farbe statt Gradient
             ctx.beginPath();
-            ctx.fillStyle = g;
-            ctx.globalAlpha = 0.95 - j * 0.08;
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.95 - j * 0.12;
             ctx.ellipse(x, y, leafW, leafH, (j - 3) * 0.12, 0, Math.PI * 2);
             ctx.fill();
           }
@@ -464,15 +469,14 @@ export class CanvasService {
           const ly = -i * (size * 0.12);
           const leafW = size * 0.36;
           const leafH = size * 0.18;
-          const g = ctx.createLinearGradient(lx - leafW, ly - leafH, lx + leafW, ly + leafH);
-          g.addColorStop(0, this.darkenColor(color, 0.06));
-          g.addColorStop(1, color);
+          // Performance: Einfache Farbe statt Gradient
           ctx.beginPath();
-          ctx.fillStyle = g;
+          ctx.fillStyle = color;
           ctx.globalAlpha = 0.95 - i * 0.12;
           ctx.ellipse(lx, ly, leafW, leafH, angle, 0, Math.PI * 2);
           ctx.fill();
 
+          // Vein - einfacher
           ctx.beginPath();
           ctx.strokeStyle = this.darkenColor(color, 0.28);
           ctx.lineWidth = Math.max(0.8, size * 0.02);
@@ -515,186 +519,136 @@ export class CanvasService {
   // --- Dirt rendering helpers ---
   drawDirtOverlay(dirtLevel: number): void {
     if (!this.ctx || !this.canvas) return;
+    // Skip if dirt is negligible
+    if (dirtLevel < 5) return;
     const ctx = this.ctx; const canvas = this.canvas;
 
-    // normalized dirt ratio 0..1
+    // Performance: Einfacher Overlay statt 3 teure Composite-Operationen
     const dr = Math.max(0, Math.min(1, dirtLevel / 100));
-
-    // overall overlay alpha — allows stronger effect for higher dirt
-    const baseAlpha = Math.min(0.85, dr * 0.9);
+    const alpha = Math.min(0.3, dr * 0.35);
 
     ctx.save();
-
-    // create a subtle multi-stop green overlay (top slightly lighter, bottom darker/green-brown)
-    const lg = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    lg.addColorStop(0, `rgba(120, 200, 150, ${0.06 * baseAlpha})`); // light green tint near surface
-    lg.addColorStop(0.35, `rgba(90, 170, 120, ${0.12 * baseAlpha})`);
-    lg.addColorStop(0.6, `rgba(60, 140, 100, ${0.18 * baseAlpha})`);
-    lg.addColorStop(1, `rgba(30, 90, 70, ${0.26 * baseAlpha})`); // deeper, stronger tint
-
-    // use multiply to tint underlying water colors smoothly
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.fillStyle = lg as any;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = 'rgba(30, 90, 70, 1)'; // Grünlicher Schmutz
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // subtle soft vignette to simulate turbidity concentration toward edges if dirt is high
-    if (dirtLevel > 25) {
-      const vignetteAlpha = Math.min(0.45, (dirtLevel - 25) / 100);
-      const rg = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.2, canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.9);
-      rg.addColorStop(0, `rgba(0,0,0,0)`);
-      // slightly greenish-dark rim to keep chromatic consistency
-      rg.addColorStop(0.7, `rgba(12,20,10,${vignetteAlpha * 0.6})`);
-      rg.addColorStop(1, `rgba(6,10,6,${vignetteAlpha})`);
-
-      ctx.globalCompositeOperation = 'multiply';
-      ctx.fillStyle = rg as any;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.globalCompositeOperation = 'source-over';
-    } else {
-      // reset composite if vignette not applied
-      ctx.globalCompositeOperation = 'source-over';
-    }
-
-    // For very strong dirt, add a faint warm/brown overlay in low alpha to hint at murk and sediments
-    if (dirtLevel > 60) {
-      const warmAlpha = Math.min(0.28, (dirtLevel - 60) / 160);
-      ctx.globalCompositeOperation = 'overlay';
-      ctx.fillStyle = `rgba(60,40,20,${warmAlpha})`;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.globalCompositeOperation = 'source-over';
-    }
-
     ctx.restore();
   }
 
   drawStains(stains: Array<{id:string,x:number,y:number,radius:number,amount:number}>) {
     if (!this.ctx || !this.canvas) return;
+    // Skip if no stains
+    if (!stains || stains.length === 0) return;
     const ctx = this.ctx; const canvas = this.canvas;
-    stains.forEach(s => {
-      const px = s.x * canvas.getBoundingClientRect().width;
-      const py = s.y * canvas.getBoundingClientRect().height;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Performance: Limit stains drawn per frame
+    const maxStains = Math.min(stains.length, 15);
+    
+    ctx.save();
+    for (let i = 0; i < maxStains; i++) {
+      const s = stains[i];
+      const px = s.x * rect.width;
+      const py = s.y * rect.height;
       const r = Math.max(4, s.radius);
-      const g = ctx.createRadialGradient(px, py, 0, px, py, r * 1.6);
-      // make stains more subtle so they don't fully cover the water tint
-      const innerAlpha = Math.max(0.04, Math.min(0.6, s.amount * 0.9));
-      g.addColorStop(0, `rgba(80,60,40,${innerAlpha})`);
-      g.addColorStop(0.35, `rgba(80,60,40,${Math.max(0, innerAlpha - 0.12)})`);
-      g.addColorStop(1, 'rgba(80,60,40,0)');
-      ctx.save();
-      ctx.globalCompositeOperation = 'overlay';
-      ctx.fillStyle = g as any;
+      
+      // Performance: Einfacher Kreis statt Radial-Gradient
+      ctx.fillStyle = `rgba(80,60,40,${Math.min(0.3, s.amount * 0.5)})`;
       ctx.beginPath();
-      ctx.arc(px, py, r * 1.2, 0, Math.PI * 2);
+      ctx.arc(px, py, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
-    });
+    }
+    ctx.restore();
   }
 
   drawFish(fish: FishInstance[], dirtRatio = 0): void {
     if (!this.ctx) return;
     const ctx = this.ctx;
 
-    // clamp dirtRatio to 0..1
-    const dr = Math.max(0, Math.min(1, dirtRatio));
+    // CRITICAL: Ensure clean state before drawing fish
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1.0;
 
     fish.forEach(f => {
+      const dr = Math.max(0, Math.min(1, dirtRatio));
+      const visibility = Math.max(0.3, 1 - dr * 0.7);
+
       ctx.save();
       ctx.translate(f.x, f.y);
-      // If fish is dead, fix rotation so the belly faces up (rotate 90° to the right)
+
+      // If fish is dead, rotate 180° so belly faces up
       if (f.isDead) {
-        // rotate 180° so the belly (previously down) points up
         ctx.rotate(Math.PI);
-        // disable swim pulse animation for dead fish
       } else {
         ctx.rotate(f.direction);
-
         const swimPulse = Math.sin(Date.now() * 0.01 + f.x * 0.01) * 0.1 + 1;
         const scaleX = swimPulse;
         const scaleY = 1 / swimPulse;
         ctx.scale(scaleX, scaleY);
       }
 
-      // visibility factor derived from dirt: at dr=0 -> 1, at dr=1 -> limited visibility (min ~0.12)
-      const visibility = Math.max(0.12, 1 - dr * 0.85);
-
-      // Darken fish color a bit more with dirt
-      const darkenFactor = 0.3 + dr * 0.35;
-
-      const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, f.size);
-      gradient.addColorStop(0, f.color);
-      gradient.addColorStop(0.7, f.color);
-      gradient.addColorStop(1, this.darkenColor(f.color, darkenFactor));
-
+      // Draw main body
       ctx.beginPath();
-      ctx.fillStyle = gradient;
-      ctx.globalAlpha = 0.9 * visibility;
+      ctx.fillStyle = f.color;
+      ctx.globalAlpha = 0.8 * visibility;
       ctx.ellipse(0, 0, f.size * 0.8, f.size * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      // Draw tail
       ctx.beginPath();
       ctx.fillStyle = f.color;
-      ctx.globalAlpha = 0.7 * visibility;
+      ctx.globalAlpha = 0.6 * visibility;
       ctx.moveTo(-f.size * 0.8, 0);
       ctx.lineTo(-f.size * 1.3, -f.size * 0.3);
       ctx.lineTo(-f.size * 1.3, f.size * 0.3);
       ctx.closePath();
       ctx.fill();
 
-      // eyes — reduce contrast with dirt (multiply by visibility)
+      // Eyes
       ctx.beginPath();
       ctx.fillStyle = 'white';
-      ctx.globalAlpha = 1 * visibility;
+      ctx.globalAlpha = 0.8 * visibility;
       ctx.arc(f.size * 0.3, -f.size * 0.15, f.size * 0.15, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.beginPath();
       ctx.fillStyle = 'black';
-      ctx.globalAlpha = 1 * visibility;
+      ctx.globalAlpha = 0.9 * visibility;
       ctx.arc(f.size * 0.35, -f.size * 0.15, f.size * 0.08, 0, Math.PI * 2);
       ctx.fill();
 
+      // Fins
       ctx.globalAlpha = 0.6 * visibility;
       ctx.fillStyle = f.color;
 
-      // Special rendering for catfish (cleaner fish)
       if (f.type === 'catfish') {
-        // Draw barbels (whiskers)
+        // Barbels (whiskers)
         ctx.strokeStyle = this.darkenColor(f.color, 0.4);
         ctx.lineWidth = 2;
         ctx.globalAlpha = 0.8 * visibility;
-        // Upper barbels
         ctx.beginPath();
         ctx.moveTo(f.size * 0.6, -f.size * 0.3);
         ctx.lineTo(f.size * 1.1, -f.size * 0.5);
         ctx.stroke();
-        // Lower barbels
         ctx.beginPath();
         ctx.moveTo(f.size * 0.6, f.size * 0.1);
         ctx.lineTo(f.size * 1.1, f.size * 0.3);
         ctx.stroke();
-        // Flatter body shape
-        ctx.globalAlpha = 0.5 * visibility;
-        ctx.fillStyle = this.darkenColor(f.color, 0.2 + dr * 0.15);
-        ctx.beginPath();
-        ctx.ellipse(0, f.size * 0.1, f.size * 0.7, f.size * 0.4, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // Spots pattern
+        // Spots
         ctx.globalAlpha = 0.3 * visibility;
-        ctx.fillStyle = this.darkenColor(f.color, 0.4 + dr * 0.2);
+        ctx.fillStyle = this.darkenColor(f.color, 0.4);
         for (let i = 0; i < 4; i++) {
           ctx.beginPath();
           ctx.arc(-f.size * 0.3 + i * f.size * 0.3, (i % 2 ? -0.2 : 0.2) * f.size, f.size * 0.1, 0, Math.PI * 2);
           ctx.fill();
         }
       } else if (f.type === 'angelfish') {
-        ctx.globalAlpha = 0.6 * visibility;
         ctx.beginPath();
         ctx.moveTo(0, -f.size * 0.5);
         ctx.lineTo(f.size * 0.2, -f.size * 1.2);
         ctx.lineTo(f.size * 0.4, -f.size * 0.8);
         ctx.closePath();
         ctx.fill();
-
         ctx.beginPath();
         ctx.moveTo(0, f.size * 0.5);
         ctx.lineTo(f.size * 0.2, f.size * 1.2);
@@ -702,14 +656,12 @@ export class CanvasService {
         ctx.closePath();
         ctx.fill();
       } else {
-        ctx.globalAlpha = 0.6 * visibility;
         ctx.beginPath();
         ctx.moveTo(0, -f.size * 0.5);
         ctx.lineTo(f.size * 0.3, -f.size * 0.8);
         ctx.lineTo(f.size * 0.5, -f.size * 0.4);
         ctx.closePath();
         ctx.fill();
-
         ctx.beginPath();
         ctx.moveTo(0, f.size * 0.5);
         ctx.lineTo(f.size * 0.3, f.size * 0.8);
@@ -719,53 +671,49 @@ export class CanvasService {
       }
 
       ctx.restore();
-      ctx.globalAlpha = 1;
 
-      // draw hunger bar above fish if they're hungry (show at 20+ hunger)
-      try {
-        if (!f.isDead && typeof f.hunger === 'number' && f.hunger > 20) {
-          const barWidth = Math.max(28, f.size * 1.6);
-          const barHeight = 6;
-          const bx = f.x - barWidth / 2;
-          const by = f.y - f.size - 10; // slightly above fish
+      // Hunger bar (drawn in screen space)
+      if (!f.isDead && typeof f.hunger === 'number' && f.hunger > 20) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1.0;
+        
+        const barWidth = Math.max(28, f.size * 1.6);
+        const barHeight = 6;
+        const bx = f.x - barWidth / 2;
+        const by = f.y - f.size - 10;
 
-          // background shadow
-          ctx.fillStyle = 'rgba(0,0,0,0.45)';
-          ctx.fillRect(bx - 1, by - 1, barWidth + 2, barHeight + 2);
+        // Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(bx - 1, by - 1, barWidth + 2, barHeight + 2);
 
-          // empty bar background (red = hungry)
-          ctx.fillStyle = 'rgba(220,40,40,0.98)';
-          ctx.fillRect(bx, by, barWidth, barHeight);
+        // Red background (hungry)
+        ctx.fillStyle = 'rgba(220,40,40,0.98)';
+        ctx.fillRect(bx, by, barWidth, barHeight);
 
-          // filled green portion = satiety (inverted: 100 hunger = 0% bar, 0 hunger = 100% bar)
-          const satiety = 100 - f.hunger; // Invert: 0 hunger = 100 satiety
-          const fillW = Math.max(0, Math.min(barWidth, (satiety / 100) * barWidth));
+        // Green fill (satiety)
+        const satiety = 100 - f.hunger;
+        const fillW = Math.max(0, Math.min(barWidth, (satiety / 100) * barWidth));
+        ctx.fillStyle = 'rgba(40,220,40,0.98)';
+        ctx.fillRect(bx, by, fillW, barHeight);
 
-          // Debug log (only log once per fish per frame to avoid spam)
-          if (!this.hungerBarDebugLogged) {
-            console.log(`🎨 Hunger Bar: ${f.name || f.type} - Hunger: ${f.hunger.toFixed(1)}, Satiety: ${satiety.toFixed(1)}, FillWidth: ${fillW.toFixed(1)}/${barWidth}`);
-            this.hungerBarDebugLogged = true;
-            setTimeout(() => this.hungerBarDebugLogged = false, 2000); // Reset after 2s
-          }
-
-          ctx.fillStyle = 'rgba(40,220,40,0.98)'; // Green for satiety
-          ctx.fillRect(bx, by, fillW, barHeight);
-
-          // border
-          ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(bx, by, barWidth, barHeight);
-        }
-      } catch (e) {
-        // ignore drawing errors in exotic environments
+        // Border
+        ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx, by, barWidth, barHeight);
+        
+        ctx.restore();
       }
     });
+
+    ctx.restore();
   }
 
   // drawLightEffect: draws top-down light overlay. Supports optional colorTemp (Kelvin), sunAngle (radians), and dirtLevel (0..100)
   drawLightEffect(lightIntensity: number, colorTemp?: number, sunAngle?: number, dirtLevel?: number): void {
     if (!this.ctx || !this.canvas) return;
-    const ctx = this.ctx; const canvas = this.canvas;
+    const ctx = this.ctx;
+    const canvas = this.canvas;
 
     // map colorTemp (Kelvin) to RGB tint (approximate)
     const kelvinToRgb = (kelvin = 6500) => {

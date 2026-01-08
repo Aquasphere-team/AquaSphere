@@ -9,10 +9,36 @@ export class SupabaseService {
   private supabase: SupabaseClient;
 
   constructor() {
+    // Clear old Supabase sessions to prevent NavigatorLock errors
+    try {
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('sb-')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      if (keysToRemove.length > 0) {
+        console.log('🧹 Cleared', keysToRemove.length, 'old Supabase keys');
+      }
+    } catch (e) {
+      console.warn('Failed to clear old sessions:', e);
+    }
+
     this.supabase = createClient(
       environment.supabaseUrl,
-      environment.supabaseKey
+      environment.supabaseKey,
+      {
+        auth: {
+          persistSession: false,  // DISABLED to prevent NavigatorLock
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          flowType: 'pkce'
+        }
+      }
     );
+    console.log('✅ Supabase client initialized (session persistence OFF)');
   }
 
   // Auth Methods
@@ -89,8 +115,33 @@ export class SupabaseService {
   }
 
   async getCurrentUser(): Promise<User | null> {
-    const { data } = await this.supabase.auth.getUser();
-    return data.user;
+    try {
+      const { data, error } = await this.supabase.auth.getUser();
+      if (error) {
+        console.log('getCurrentUser error:', error.message);
+        // Silently handle common session errors
+        if (error.message?.includes('session') || 
+            error.message?.includes('token') || 
+            error.message?.includes('expired') ||
+            error.message?.includes('invalid')) {
+          return null;
+        }
+        throw error;
+      }
+      return data.user;
+    } catch (e: any) {
+      console.log('getCurrentUser exception:', e.message);
+      // Ignore NavigatorLock and common auth errors
+      if (e.message?.includes('NavigatorLock') || 
+          e.message?.includes('session') ||
+          e.message?.includes('token')) {
+        console.warn('Auth error ignored in getCurrentUser:', e.message);
+        return null;
+      }
+      // For other errors, still return null instead of throwing
+      console.warn('Unexpected error in getCurrentUser, returning null:', e.message);
+      return null;
+    }
   }
 
   // Get user email by username from user_profiles table
@@ -138,14 +189,14 @@ export class SupabaseService {
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
     
     console.log('loadAquariumState: data =', data);
     console.log('loadAquariumState: error =', error);
     
-    if (error && error.code !== 'PGRST116') {
-      console.error('loadAquariumState: throwing error', error);
-      throw error; // PGRST116 = no rows
+    if (error) {
+      console.error('loadAquariumState: error', error);
+      throw error;
     }
     return data?.state || null;
   }

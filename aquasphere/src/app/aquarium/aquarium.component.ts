@@ -39,6 +39,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   private animationId?: number;
   private waveOffset = 0;
   private lightIntensity = 1;
+  private frameCount = 0;
 
   // auth state
   inScreenMenu = false;
@@ -229,14 +230,15 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.inPhoneAuth = false;
     this.decorationPaletteVisible = false;
     this.placingPlant = false;
-    // Check if user is already logged in from previous session
-    this.checkExistingSession();
+    // Don't check session here - wait for canvas to be ready
   }
 
   ngAfterViewInit(): void {
     // Canvas should be available now
     setTimeout(() => {
       this.initializeAquarium();
+      // Check for existing session after aquarium is initialized
+      setTimeout(() => this.checkExistingSession(), 500);
     }, 100);
 
     // Trigger onboarding for new users (service prevents showing if already seen)
@@ -275,17 +277,21 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private createStarterFish(): void {
+    console.log('🐠 Creating starter fish...');
     // delegate to FishService and sync local reference
     this.fishService.createStarterFish();
     this.fish = this.fishService.fish;
+    console.log('✅ Created', this.fish.length, 'starter fish:', this.fish.map(f => f.name).join(', '));
   }
 
   private createStarterPlants(): void {
+    console.log('🌿 Creating starter plants...');
     this.plants = [
       { type: 'fern', nx: 0.1, ny: 0.8, scale: 1 },
       { type: 'anubias', nx: 0.7, ny: 0.9, scale: 1.1 },
       { type: 'moss', nx: 0.3, ny: 0.75, scale: 1 }
     ];
+    console.log('✅ Created', this.plants.length, 'starter plants');
   }
 
   private handleResize = (): void => {
@@ -382,9 +388,11 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     // set default size and styles
     canvas.width = 800; canvas.height = 600; canvas.style.width = '100%'; canvas.style.height = '100%';
 
+    // Always create starter content first (will be replaced if user has saved state)
     this.particleService.initParticles(20, canvas.width, canvas.height);
     this.createStarterFish();
     this.createStarterPlants();
+    console.log('✅ Starter content created:', this.fish.length, 'fish,', this.plants.length, 'plants');
 
     // attach click handler
     try { canvas.addEventListener('pointerup', this.canvasClickHandler as EventListener); } catch {}
@@ -403,7 +411,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         this.dirtLevel = s.dirtLevel;
         this.dirtLastUpdated = s.dirtLastUpdated;
         this.dirtStains = s.dirtStains;
-        console.log(`📊 Dirt Update: Level=${this.dirtLevel.toFixed(1)}, Stains=${this.dirtStains.length}, Penalty=${this.getDirtPenaltyPercent()}%, Icon visible=${this.isAquariumDirty()}`);
+        // console.log(`📊 Dirt Update: Level=${this.dirtLevel.toFixed(1)}, Stains=${this.dirtStains.length}, Penalty=${this.getDirtPenaltyPercent()}%, Icon visible=${this.isAquariumDirty()}`);
       });
     } catch (e) {}
 
@@ -647,17 +655,38 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
 
   async checkExistingSession(): Promise<void> {
+    // DISABLED: Supabase auth check disabled to prevent NavigatorLock errors
+    // Just use starter content without checking for existing session
+    console.log('ℹ️ Auto-login disabled - starting with fresh content');
+    this.currentUser = null;
+    this.currentUserId = null;
+    
+    /* Original code - re-enable when NavigatorLock is fixed:
     try {
+      console.log('🔍 Checking for existing session...');
       const user = await this.supabaseService.getCurrentUser();
       if (user) {
+        console.log('✅ Found existing session for user:', user.id);
         this.currentUser = user.user_metadata['username'] || user.email?.split('@')[0] || 'Benutzer';
         this.currentUserId = user.id;
-        await this.loadUserState();
-        console.log('Auto-logged in:', this.currentUser);
+        try {
+          await this.loadUserState();
+          console.log('✅ Auto-logged in:', this.currentUser);
+        } catch (loadError: any) {
+          console.warn('⚠️ Failed to load user state, keeping starter content:', loadError.message);
+          // Keep the starter content that was already created
+        }
+      } else {
+        console.log('ℹ️ No existing session - using starter content');
       }
-    } catch (e) {
-      console.log('No existing session');
+    } catch (e: any) {
+      console.log('ℹ️ Session check failed:', e.message || 'Unknown error');
+      // Don't throw - just use starter content
+      // Clear any partial auth state
+      this.currentUser = null;
+      this.currentUserId = null;
     }
+    */
   }
 
   async register(): Promise<void> {
@@ -847,10 +876,19 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
         console.log('Aquarium state loaded from cloud! 🌊');
       } else {
-        console.log('No saved state found in cloud');
+        console.log('ℹ️ No saved state found in cloud - keeping starter content');
+        // Starter content was already created in initializeAquarium
+        // Just start the time
+        if (!this.aquariumStartTime) {
+          this.startAquariumTime();
+        }
       }
     } catch (e: any) {
-      console.warn('Failed to load user state:', e.message);
+      console.warn('⚠️ Failed to load user state:', e.message);
+      // Keep starter content that was already created
+      if (!this.aquariumStartTime) {
+        this.startAquariumTime();
+      }
     }
   }
 
@@ -878,28 +916,40 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     }
 
     const canvas = this.canvasRef.nativeElement;
+    const ctx = this.canvasService.getContext();
+    
+    if (!ctx) {
+      console.error('❌ NO CANVAS CONTEXT!');
+      return;
+    }
+
     // clear via service context
-    this.canvasService.getContext()?.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Animationen zeichnen (delegated to CanvasService)
     this.canvasService.drawWaterBackground(this.dirtLevel / 100);
     this.canvasService.drawCausticEffect(this.waveOffset);
-    this.canvasService.drawWaterParticles(this.particleService.getParticles());
+    
+    // draw dirt effects only if needed (expensive composite operations)
+    if (this.dirtLevel > 5 || this.dirtStains.length > 0) {
+      try {
+        this.canvasService.drawDirtOverlay(this.dirtLevel);
+        this.canvasService.drawStains(this.dirtStains);
+      } catch (e) {
+        // ignore rendering errors
+      }
+    }
+
+    // NOW draw everything AFTER dirt so they're visible
     // draw non-plant decorations (stones, corals)
     this.canvasService.drawDecorations(this.decorations, this.decorationService.decorationTypes, this.waveOffset);
     // draw user-placed plants
     this.canvasService.drawPlants(this.plants, this.decorationService.plantTypes, this.waveOffset);
-    // update and draw fish
+    // particles (food)
+    this.canvasService.drawWaterParticles(this.particleService.getParticles());
+    // fish
     this.updateFish();
     this.canvasService.drawFish(this.fish, this.dirtLevel / 100);
-
-    // draw dirt effects (turbidity overlay) and visible stains on glass
-    try {
-      this.canvasService.drawDirtOverlay(this.dirtLevel);
-      this.canvasService.drawStains(this.dirtStains);
-    } catch (e) {
-      // ignore rendering errors
-    }
 
     // Passive point generation from fish
     this.generatePointsFromFish();
@@ -912,6 +962,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.canvasService.drawLightEffect(this.lightIntensity);
 
     this.waveOffset += 0.03;
+    this.frameCount++;
     this.animationId = requestAnimationFrame(() => this.animate());
   }
 
@@ -1059,7 +1110,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       this.showMessage(`Nicht genug Punkte! Füttern kostet ${this.FEED_COST} Punkte.`);
       return;
     }
-    console.log('🐟 Fische werden gefüttert!');
+    // console.log('🐟 Füttere Fische...');
 
     // delegate to particleService
     this.particleService.addFeedBurst(10, 50, 750);

@@ -174,14 +174,14 @@ export class FishService {
 
       // Debug: Log hunger changes every ~10 points
       if (Math.floor(fish.hunger / 10) !== Math.floor(oldHunger / 10)) {
-        console.log(`🐟 ${fish.name || fish.type}: Hunger ${fish.hunger.toFixed(1)}/100 (0=satt, 100=verhungert)`);
+        // console.log(`🐟 ${fish.name || fish.type}: Hunger ${fish.hunger.toFixed(1)}/100 (0=satt, 100=verhungert)`);
       }
 
       // Debug: Log satiation status when it ends
       const realTimeLeft = realTimePauseNeeded - realTimeSinceAte;
       if (isSatiated && realTimeLeft < 1000 && !fish.satiationLoggedEnd) {
         fish.satiationLoggedEnd = true;
-        console.log(`✅ ${fish.name || fish.type}: Sättigungspause vorbei, Hunger steigt wieder`);
+        // console.log(`✅ ${fish.name || fish.type}: Sättigungspause vorbei, Hunger steigt wieder`);
       }
       if (!isSatiated) {
         fish.satiationLoggedEnd = false;
@@ -191,7 +191,7 @@ export class FishService {
       if (fish.hunger >= 100) {
         if (!fish.starvationStart) {
           fish.starvationStart = now;
-          console.log(`⚠️ ${fish.name || fish.type}: VERHUNGERT! Timer startet...`);
+          // console.log(`⚠️ ${fish.name || fish.type}: VERHUNGERT! Timer startet...`);
         }
       } else {
         fish.starvationStart = undefined;
@@ -224,7 +224,7 @@ export class FishService {
       // floating feed only when that feed particle is a few cm under the surface (y <= SURFACE_FEED_MAX_Y).
       // Feeding has priority over cleaning: cleaner fish will abandon cleaning to chase food if hungry.
       if (fish.hunger > this.HUNGER_THRESHOLD && !fish.isFeeding) {
-        console.log(`🍽️ ${fish.name || fish.type}: Sucht Futter! Hunger: ${fish.hunger.toFixed(1)}/100 (Threshold: ${this.HUNGER_THRESHOLD})`);
+        // console.log(`🍽️ ${fish.name || fish.type}: Sucht Futter! Hunger: ${fish.hunger.toFixed(1)}/100 (Threshold: ${this.HUNGER_THRESHOLD})`);
         const settledFood = particles.filter(p => (p as any).isFeed && (p as any).settled);
         let candidateFood: Particle[];
         if (settledFood.length > 0) {
@@ -300,7 +300,7 @@ export class FishService {
                const oldHungerEat = fish.hunger;
                fish.hunger = Math.max(0, fish.hunger - this.HUNGER_DECREASE_ON_EAT);
                fish.lastAteTime = now; // Track when fish ate for satiation pause
-               console.log(`😋 ${fish.name || fish.type}: Hat gefressen! Hunger: ${oldHungerEat.toFixed(1)} → ${fish.hunger.toFixed(1)} (-${this.HUNGER_DECREASE_ON_EAT}) = SATT! [45s Spielzeit Pause]`);
+               // console.log(`😋 ${fish.name || fish.type}: Hat gefressen! Hunger: ${oldHungerEat.toFixed(1)} → ${fish.hunger.toFixed(1)} (-${this.HUNGER_DECREASE_ON_EAT}) = SATT! [45s Spielzeit Pause]`);
                // also remove any tiny remaining overlapping feed particles within radius
                const ex = eaten.x; const ey = eaten.y;
                for (let i = particles.length - 1; i >= 0; i--) {
