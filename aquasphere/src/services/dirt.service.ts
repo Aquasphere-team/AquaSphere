@@ -105,8 +105,8 @@ export class DirtService {
         createdAt: Date.now()
       };
       this.state.dirtStains.push(stain);
-      // keep cap
-      if (this.state.dirtStains.length > 200) this.state.dirtStains.shift();
+      // Performance: Limit auf 50 statt 200
+      if (this.state.dirtStains.length > 50) this.state.dirtStains.shift();
     }
     // small bump to global turbidity when stains are created
     this.state.dirtLevel = Math.min(100, this.state.dirtLevel + 0.5 * count);
@@ -179,7 +179,7 @@ export class DirtService {
         const merged = { ...(existing || {}), dirtLevel: this.state.dirtLevel, dirtLastUpdated: new Date(this.state.dirtLastUpdated).toISOString(), dirtStains: this.state.dirtStains };
         await this.supabaseService.saveAquariumState(this.userId!, merged);
       } catch (e) {
-        console.warn('DirtService save failed', e);
+        // console.warn('DirtService save failed', e);
       }
     }, 4000);
   }

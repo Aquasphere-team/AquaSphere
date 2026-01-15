@@ -13,5 +13,23 @@ html, body {
 
 body {
   margin: 0;
-  background: linear-gradient(180deg, #001f3f 0%, #003366 50%, #004080 100%);
+  background: #001f3f;
+}
+
+/* Mobile fullscreen optimizations */
+@media (max-width: 768px) {
+  html, body {
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overscroll-behavior: none !important;
+    touch-action: manipulation !important;
+    -webkit-overflow-scrolling: none !important;
+  }
 }
