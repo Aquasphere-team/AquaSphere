@@ -221,6 +221,44 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   spongeX = 0;
   spongeY = 0;
 
+  // Light control state
+  lightMenuVisible = false;
+  aquariumLampOn = false;
+  accentLightEnabled = false;
+  accentLightColor = '#4169E1';
+
+  // Day/Night auto toggle
+  autoDayNight = true;
+
+  // Theme system
+  showThemeMenu = false;
+  currentTheme = 'classic';
+  purchasedThemes: string[] = ['classic'];
+  availableThemes = [
+    { id: 'classic', name: 'Klassisch', icon: '🌊', cost: 0, unlockType: 'free' },
+    { id: 'tropical', name: 'Tropisch', icon: '🏝️', cost: 50, unlockType: 'points' },
+    { id: 'deep', name: 'Tiefsee', icon: '🌑', cost: 100, unlockType: 'points' },
+    { id: 'sunset', name: 'Sonnenuntergang', icon: '🌅', cost: 75, unlockType: 'points' },
+    { id: 'neon', name: 'Neon', icon: '💜', cost: 150, unlockType: 'points' },
+    { id: 'arctic', name: 'Arktis', icon: '❄️', cost: 0, unlockType: 'achievement' },
+    { id: 'lava', name: 'Lava', icon: '🌋', cost: 0, unlockType: 'achievement' },
+    { id: 'midnight', name: 'Mitternacht', icon: '🌙', cost: 0, unlockType: 'achievement' }
+  ];
+
+  // Achievement system
+  showAchievements = false;
+  achievementNotification: { icon: string; name: string; description: string; reward?: string } | null = null;
+  private achievements = [
+    { id: 'first_fish', name: 'Erster Fisch', description: 'Kaufe deinen ersten Fisch', icon: '🐟', requirement: 1, progress: 0, unlocked: false, reward: 'theme:arctic' },
+    { id: 'fish_collector', name: 'Fischsammler', description: 'Besitze 5 Fische gleichzeitig', icon: '🐠', requirement: 5, progress: 0, unlocked: false, reward: 'theme:lava' },
+    { id: 'plant_lover', name: 'Pflanzenliebhaber', description: 'Platziere 3 Pflanzen', icon: '🌿', requirement: 3, progress: 0, unlocked: false },
+    { id: 'rich', name: 'Reich', description: 'Sammle 500 Punkte', icon: '💰', requirement: 500, progress: 0, unlocked: false, reward: 'theme:midnight' },
+    { id: 'cleaner', name: 'Saubermann', description: 'Reinige das Aquarium 10 mal', icon: '🧹', requirement: 10, progress: 0, unlocked: false },
+    { id: 'feeder', name: 'Fütterer', description: 'Füttere die Fische 20 mal', icon: '🍽️', requirement: 20, progress: 0, unlocked: false }
+  ];
+  private feedCount = 0;
+  private cleanCount = 0;
+
   // dirt subscription (for future use)
   private dirtSubscription: any = null;
 
@@ -1065,6 +1103,9 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.particleService.addFeedBurst(10, 50, 750);
     this.points -= this.FEED_COST;
 
+    // Track for achievements
+    this.trackFeed();
+
     // spawn some stains where feed will land (randomized across the width, just under surface)
     try {
       const canvas = this.canvasRef.nativeElement;
@@ -1094,8 +1135,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   toggleLight(): void {
-    console.log('💡 Licht umgeschaltet!');
-    this.lightIntensity = this.lightIntensity > 0.5 ? 0.2 : 1.5;
+    this.toggleLightMenu();
   }
 
   cleanAquarium(): void {
@@ -1181,6 +1221,8 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
            this.lastSpawnFeedback = nowMs;
            // spawn at sponge position in pixel coords
            this.particleService.spawnCleaningParticles(this.spongeX, this.spongeY, 2);
+           // Track for achievements (count cleaning actions, not individual particles)
+           this.trackClean();
          }
        }
      } catch (e) {
@@ -1256,5 +1298,143 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     } catch (e) {
       console.warn('silent save failed', e);
     }
+  }
+
+  // ===== Light Control Methods =====
+  toggleLightMenu(): void {
+    this.lightMenuVisible = !this.lightMenuVisible;
+    if (this.lightMenuVisible) {
+      this.inScreenMenu = false;
+      this.showThemeMenu = false;
+    }
+  }
+
+  closeLightMenu(): void {
+    this.lightMenuVisible = false;
+  }
+
+  toggleAquariumLamp(): void {
+    this.aquariumLampOn = !this.aquariumLampOn;
+    this.showMessage(this.aquariumLampOn ? 'Lampe eingeschaltet' : 'Lampe ausgeschaltet');
+  }
+
+  toggleAccentLight(): void {
+    this.accentLightEnabled = !this.accentLightEnabled;
+    this.showMessage(this.accentLightEnabled ? 'LED eingeschaltet' : 'LED ausgeschaltet');
+  }
+
+  setAccentColor(color: string): void {
+    this.accentLightColor = color;
+  }
+
+  onAccentColorChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.accentLightColor = input.value;
+  }
+
+  // ===== Day/Night Toggle =====
+  toggleAutoDayNight(): void {
+    this.autoDayNight = !this.autoDayNight;
+    this.showMessage(this.autoDayNight ? 'Tag/Nacht-Zyklus aktiviert' : 'Tag/Nacht-Zyklus pausiert');
+  }
+
+  // ===== Theme System Methods =====
+  toggleThemeMenu(): void {
+    this.showThemeMenu = !this.showThemeMenu;
+    if (this.showThemeMenu) {
+      this.inScreenMenu = false;
+      this.lightMenuVisible = false;
+    }
+  }
+
+  isThemeUnlocked(themeId: string): boolean {
+    const theme = this.availableThemes.find(t => t.id === themeId);
+    if (!theme) return false;
+    if (theme.unlockType === 'free') return true;
+    return this.purchasedThemes.includes(themeId);
+  }
+
+  selectTheme(themeId: string): void {
+    const theme = this.availableThemes.find(t => t.id === themeId);
+    if (!theme) return;
+
+    if (this.isThemeUnlocked(themeId)) {
+      this.currentTheme = themeId;
+      this.showMessage(`Theme "${theme.name}" aktiviert`);
+      return;
+    }
+
+    // Try to purchase
+    if (theme.unlockType === 'points' && theme.cost) {
+      if (this.points >= theme.cost) {
+        this.points -= theme.cost;
+        this.purchasedThemes.push(themeId);
+        this.currentTheme = themeId;
+        this.showMessage(`Theme "${theme.name}" gekauft und aktiviert!`);
+      } else {
+        this.showMessage(`Nicht genug Punkte! (${theme.cost} benötigt)`);
+      }
+    } else if (theme.unlockType === 'achievement') {
+      this.showMessage('Dieses Theme wird durch ein Achievement freigeschaltet');
+    }
+  }
+
+  // ===== Achievement System Methods =====
+  toggleAchievements(): void {
+    this.showAchievements = !this.showAchievements;
+  }
+
+  getAchievements() {
+    // Update progress
+    this.achievements.find(a => a.id === 'first_fish')!.progress = Math.min(1, this.fish.length);
+    this.achievements.find(a => a.id === 'fish_collector')!.progress = this.fish.length;
+    this.achievements.find(a => a.id === 'plant_lover')!.progress = this.plants.length;
+    this.achievements.find(a => a.id === 'rich')!.progress = this.points;
+    this.achievements.find(a => a.id === 'feeder')!.progress = this.feedCount;
+    this.achievements.find(a => a.id === 'cleaner')!.progress = this.cleanCount;
+
+    // Check for newly unlocked
+    this.achievements.forEach(a => {
+      if (!a.unlocked && a.progress >= a.requirement) {
+        a.unlocked = true;
+        this.onAchievementUnlocked(a);
+      }
+    });
+
+    return this.achievements;
+  }
+
+  private onAchievementUnlocked(achievement: typeof this.achievements[0]): void {
+    // Show notification
+    this.achievementNotification = {
+      icon: achievement.icon,
+      name: achievement.name,
+      description: achievement.description,
+      reward: achievement.reward
+    };
+
+    // Unlock reward theme if applicable
+    if (achievement.reward?.startsWith('theme:')) {
+      const themeId = achievement.reward.split(':')[1];
+      if (!this.purchasedThemes.includes(themeId)) {
+        this.purchasedThemes.push(themeId);
+      }
+    }
+
+    // Auto-hide notification after 5 seconds
+    setTimeout(() => {
+      this.achievementNotification = null;
+      this.cdr.detectChanges();
+    }, 5000);
+  }
+
+  // Track feeding for achievements
+  private trackFeed(): void {
+    this.feedCount++;
+  }
+
+  // Track cleaning for achievements
+  private trackClean(): void {
+    this.cleanCount++;
   }
 }
