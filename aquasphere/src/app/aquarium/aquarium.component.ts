@@ -47,9 +47,24 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   autoDayNight = true; // toggle for automatic day/night
   private baseLightIntensity = 1; // remembers manual setting when auto is off
 
-  // themes
-  currentTheme: 'classic' | 'tropical' | 'deep' | 'sunset' = 'classic';
+  // themes - all available themes with unlock requirements
+  currentTheme: string = 'classic';
   showThemeMenu = false;
+  
+  // Theme definitions with unlock requirements
+  availableThemes: { id: string; name: string; icon: string; unlockType: 'free' | 'achievement' | 'points'; cost?: number; achievementId?: string }[] = [
+    { id: 'classic', name: 'Klassisch', icon: '🌊', unlockType: 'free' },
+    { id: 'tropical', name: 'Tropisch', icon: '🌴', unlockType: 'achievement', achievementId: 'feed_10' },
+    { id: 'deep', name: 'Tiefsee', icon: '🌑', unlockType: 'achievement', achievementId: 'time_24h' },
+    { id: 'sunset', name: 'Sonnenuntergang', icon: '🌅', unlockType: 'achievement', achievementId: 'feed_100' },
+    { id: 'neon', name: 'Neon Party', icon: '🔮', unlockType: 'points', cost: 500 },
+    { id: 'arctic', name: 'Arktis', icon: '❄️', unlockType: 'free' },
+    { id: 'lava', name: 'Vulkan', icon: '🌋', unlockType: 'points', cost: 1000 },
+    { id: 'midnight', name: 'Mitternacht', icon: '🌙', unlockType: 'free' }
+  ];
+  
+  // Track which themes have been purchased
+  purchasedThemes: string[] = ['classic', 'arctic', 'midnight'];
 
   // achievements
   showAchievements = false;
@@ -308,20 +323,32 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     const canvas = this.canvasRef.nativeElement;
     if (!canvas) return;
 
-    // Nur noch phone-screen container verwenden
-    const container = canvas.closest('.phone-screen') as HTMLElement | null;
-
-    if (container) {
-      const rect = container.getBoundingClientRect();
-      // Set canvas size to match phone screen
-      canvas.width = Math.max(1, Math.floor(rect.width));
-      canvas.height = Math.max(1, Math.floor(rect.height));
+    // Für Mobile: direkt window.innerWidth/innerHeight verwenden
+    const isMobile = window.innerWidth <= 768;
+    
+    if (isMobile) {
+      // Auf Mobile: Canvas füllt gesamten Viewport
+      canvas.width = Math.max(1, Math.floor(window.innerWidth));
+      canvas.height = Math.max(1, Math.floor(window.innerHeight));
       canvas.style.width = '100%';
       canvas.style.height = '100%';
     } else {
-      canvas.width = 375; // fallback
-      canvas.height = 667;
+      // Desktop: phone-screen container verwenden
+      const container = canvas.closest('.phone-screen') as HTMLElement | null;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        canvas.width = Math.max(1, Math.floor(rect.width));
+        canvas.height = Math.max(1, Math.floor(rect.height));
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+      } else {
+        canvas.width = 375; // fallback
+        canvas.height = 667;
+      }
     }
+    
+    // Invalidiere Background-Cache bei Größenänderung
+    this.canvasService.invalidateBackgroundCache();
   }
 
   private generatePreviews = (): void => {
@@ -419,13 +446,21 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         this.dirtLevel = s.dirtLevel;
         this.dirtLastUpdated = s.dirtLastUpdated;
         this.dirtStains = s.dirtStains;
-        console.log(`📊 Dirt Update: Level=${this.dirtLevel.toFixed(1)}, Stains=${this.dirtStains.length}, Penalty=${this.getDirtPenaltyPercent()}%, Icon visible=${this.isAquariumDirty()}`);
+        // console.log(`📊 Dirt Update: Level=${this.dirtLevel.toFixed(1)}, Stains=${this.dirtStains.length}, Penalty=${this.getDirtPenaltyPercent()}%, Icon visible=${this.isAquariumDirty()}`);
       });
     } catch (e) {}
 
     // Add resize handler
     window.addEventListener('resize', this.handleResize);
+    // Mehrere Resize-Calls für zuverlässiges Layout auf Mobile
+    this.handleResize();
     setTimeout(() => this.handleResize(), 100);
+    setTimeout(() => this.handleResize(), 500);
+    
+    // Orientierungsänderung auf Mobile
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => this.handleResize(), 100);
+    });
 
     // create small thumbnails used in palette
     try { this.generatePreviews(); } catch (e) { /* ignore */ }
@@ -655,7 +690,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       this.decorationPaletteVisible = false;
       this.fishPaletteVisible = false;
     }
-    console.log('Remove mode:', this.removeMode);
+    // console.log('Remove mode:', this.removeMode);
   }
 
   decorationTypesFor(category: string) {
@@ -673,10 +708,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         this.currentUser = user.user_metadata['username'] || user.email?.split('@')[0] || 'Benutzer';
         this.currentUserId = user.id;
         await this.loadUserState();
-        console.log('Auto-logged in:', this.currentUser);
+        // console.log('Auto-logged in:', this.currentUser);
       }
     } catch (e) {
-      console.log('No existing session');
+      // console.log('No existing session');
     }
   }
 
@@ -702,7 +737,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     try {
-      console.log('Login attempt for username:', this.authName);
+      // console.log('Login attempt for username:', this.authName);
 
       // Get email by username
       const email = await this.supabaseService.getEmailByUsername(this.authName);
@@ -712,7 +747,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         return;
       }
 
-      console.log('Found email for username, attempting sign in...');
+      // console.log('Found email for username, attempting sign in...');
       const data = await this.supabaseService.signIn(email, this.authPass);
       const user = data.user;
       if (!user) {
@@ -721,7 +756,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         return;
       }
 
-      console.log('Login successful, user:', user.id);
+      // console.log('Login successful, user:', user.id);
       this.currentUser = user.user_metadata['username'] || user.email?.split('@')[0] || 'Benutzer';
       this.currentUserId = user.id;
       this.authName = '';
@@ -729,19 +764,19 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       await this.loadUserState();
       this.closePhoneAuth();
     } catch (e: any) {
-      console.error('Login error:', e);
+      // console.error('Login error:', e);
       alert('Anmeldung fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'));
       this.authPass = ''; // Clear password on error
     }
   }
 
   async logout(): Promise<void> {
-    console.log('Logging out...');
+    // console.log('Logging out...');
     try {
       await this.supabaseService.signOut();
-      console.log('Supabase signOut successful');
+      // console.log('Supabase signOut successful');
     } catch (e: any) {
-      console.error('Logout error:', e);
+      // console.error('Logout error:', e);
     }
 
     // Always clear local state regardless of Supabase result
@@ -760,7 +795,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     this.decorations = [];
     this.createWaterParticles();
 
-    console.log('Local state cleared, logout complete');
+    // console.log('Local state cleared, logout complete');
   }
 
   openPhoneAuth(): void {
@@ -786,12 +821,12 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     // Debounce: prevent saving too frequently
     const now = Date.now();
     if (now - this.lastSaveTime < this.MIN_SAVE_INTERVAL_MS) {
-      console.log('Save skipped - too soon since last save');
+      // console.log('Save skipped - too soon since last save');
       return;
     }
     this.lastSaveTime = now;
 
-    console.log('Saving user state for user:', this.currentUserId);
+    // console.log('Saving user state for user:', this.currentUserId);
     try {
       const state = {
         lightIntensity: this.lightIntensity,
@@ -810,19 +845,20 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         // persist achievements and theme
         achievements: this.achievementService.getState(),
         currentTheme: this.currentTheme,
+        purchasedThemes: this.purchasedThemes,
         autoDayNight: this.autoDayNight
       };
-      console.log('State to save:', state);
+      // console.log('State to save:', state);
       await this.supabaseService.saveAquariumState(this.currentUserId, state);
-      console.log('Save successful!');
+      // console.log('Save successful!');
       alert('Dein Aquarium wurde in der Cloud gespeichert! 🐠');
     } catch (e: any) {
-      console.error('Save error:', e);
+      // console.error('Save error:', e);
       // Don't show alert for NavigatorLock errors - they're harmless
       if (e.message && !e.message.includes('NavigatorLock')) {
         alert('Speichern fehlgeschlagen: ' + (e.message || 'Unbekannter Fehler'));
       } else {
-        console.warn('NavigatorLock error ignored - save may have succeeded');
+        // console.warn('NavigatorLock error ignored - save may have succeeded');
         alert('Aquarium gespeichert! 🌊');
       }
     }
@@ -830,13 +866,13 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
   async loadUserState(): Promise<void> {
     if (!this.currentUserId) {
-      console.log('loadUserState: No currentUserId, skipping');
+      // console.log('loadUserState: No currentUserId, skipping');
       return;
     }
-    console.log('Loading user state for user:', this.currentUserId);
+    // console.log('Loading user state for user:', this.currentUserId);
     try {
       const state = await this.supabaseService.loadAquariumState(this.currentUserId);
-      console.log('Loaded state from cloud:', state);
+      // console.log('Loaded state from cloud:', state);
       if (state) {
         if (state.lightIntensity !== undefined) this.lightIntensity = state.lightIntensity;
         if (Array.isArray(state.particles)) this.particleService.setParticles(state.particles);
@@ -859,16 +895,17 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         if (state.dirtLevel !== undefined) this.dirtLevel = state.dirtLevel;
         if (state.dirtLastUpdated !== undefined) this.dirtLastUpdated = state.dirtLastUpdated;
         if (Array.isArray(state.dirtStains)) this.dirtStains = state.dirtStains;
-        console.log(`🔄 Dirt State geladen: Level=${this.dirtLevel.toFixed(1)}, Stains=${this.dirtStains.length}`);
+        // console.log(`🔄 Dirt State geladen: Level=${this.dirtLevel.toFixed(1)}, Stains=${this.dirtStains.length}`);
 
         // load achievements
         if (state.achievements) {
           this.achievementService.loadState(state.achievements);
-          console.log('🏆 Achievements geladen');
+          // console.log('🏆 Achievements geladen');
         }
 
         // load theme
         if (state.currentTheme) this.currentTheme = state.currentTheme;
+        if (Array.isArray(state.purchasedThemes)) this.purchasedThemes = state.purchasedThemes;
         if (state.autoDayNight !== undefined) this.autoDayNight = state.autoDayNight;
 
         // start dirt service with loaded state
@@ -877,14 +914,14 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
             // use configured passive tick interval so dirt accumulation rate is tunable
             this.dirtService.start(this.currentUserId, { dirtLevel: this.dirtLevel, dirtLastUpdated: this.dirtLastUpdated, dirtStains: this.dirtStains }, this.DIRT_PASSIVE_TICK_SEC);
           }
-        } catch (e) { console.warn('Failed to start DirtService', e); }
+        } catch (e) { /* console.warn('Failed to start DirtService', e); */ }
 
-        console.log('Aquarium state loaded from cloud! 🌊');
+        // console.log('Aquarium state loaded from cloud! 🌊');
       } else {
-        console.log('No saved state found in cloud');
+        // console.log('No saved state found in cloud');
       }
     } catch (e: any) {
-      console.warn('Failed to load user state:', e.message);
+      // console.warn('Failed to load user state:', e.message);
     }
   }
 
@@ -998,11 +1035,11 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         fish.lastPointsGenerated = now;
 
         // Visual feedback with penalty info
-        if (dirtPenalty > 0.1) {
-          console.log(`+${pointsAfterPenalty} Punkte von ${fishType?.name || 'Fisch'} (${pointsToAdd} - ${Math.round(dirtPenalty * 100)}% Schmutz-Penalty)`);
-        } else {
-          console.log(`+${pointsAfterPenalty} Punkte von ${fishType?.name || 'Fisch'}!`);
-        }
+        // if (dirtPenalty > 0.1) {
+        //   console.log(`+${pointsAfterPenalty} Punkte von ${fishType?.name || 'Fisch'} (${pointsToAdd} - ${Math.round(dirtPenalty * 100)}% Schmutz-Penalty)`);
+        // } else {
+        //   console.log(`+${pointsAfterPenalty} Punkte von ${fishType?.name || 'Fisch'}!`);
+        // }
       }
     });
   }
@@ -1046,7 +1083,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         }
       }
     } catch (e) {
-      console.warn('Fish-generated dirt update failed', e);
+      // console.warn('Fish-generated dirt update failed', e);
     }
 
     // Active cleaning by cleaner fish - passive cleaning at their current position
@@ -1084,9 +1121,9 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         }
 
         // Log when cleaning happens
-        if (cleaned > 0.01) {
-          console.log(`🧹 Putzfisch reinigt passiv. Position: (${Math.round(fish.x)}, ${Math.round(fish.y)}), Schmutz entfernt: ${(cleaned * 100).toFixed(2)}%`);
-        }
+        // if (cleaned > 0.01) {
+        //   console.log(`🧹 Putzfisch reinigt passiv. Position: (${Math.round(fish.x)}, ${Math.round(fish.y)}), Schmutz entfernt: ${(cleaned * 100).toFixed(2)}%`);
+        // }
       }
     });
 
@@ -1110,7 +1147,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       this.showMessage(`Nicht genug Punkte! Füttern kostet ${this.FEED_COST} Punkte.`);
       return;
     }
-    console.log('🐟 Fische werden gefüttert!');
+    // console.log('🐟 Fische werden gefüttert!');
 
     // delegate to particleService
     this.particleService.addFeedBurst(10, 50, 750);
@@ -1132,7 +1169,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       // apply a configurable global dirt influence from feeding
       this.dirtService.applyFishInfluence(this.fish.length, this.DIRT_FEED_MULTIPLIER, this.DIRT_PER_FISH_INFLUENCE);
     } catch (e) {
-      console.warn('Failed to spawn stains/apply dirt influence on feed', e);
+      // console.warn('Failed to spawn stains/apply dirt influence on feed', e);
     }
   }
 
@@ -1149,7 +1186,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   toggleLight(): void {
-    console.log('💡 Licht umgeschaltet!');
+    // console.log('💡 Licht umgeschaltet!');
     if (this.autoDayNight) {
       // Disable auto and set manual light
       this.autoDayNight = false;
@@ -1202,15 +1239,45 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   // Theme management
-  selectTheme(theme: 'classic' | 'tropical' | 'deep' | 'sunset'): void {
-    // Check if theme is unlocked
-    if (!this.achievementService.isThemeUnlocked(theme)) {
-      this.showMessage(`Theme gesperrt! Schalte Achievements frei.`);
+  selectTheme(themeId: string): void {
+    const theme = this.availableThemes.find(t => t.id === themeId);
+    if (!theme) return;
+
+    // Check if already purchased
+    if (this.purchasedThemes.includes(themeId)) {
+      this.currentTheme = themeId;
+      this.showThemeMenu = false;
+      this.showMessage(`Theme: ${theme.name} ${theme.icon}`);
       return;
     }
-    this.currentTheme = theme;
-    this.showThemeMenu = false;
-    this.showMessage(`Theme: ${theme}`);
+
+    // Handle different unlock types
+    if (theme.unlockType === 'free') {
+      this.purchasedThemes.push(themeId);
+      this.currentTheme = themeId;
+      this.showThemeMenu = false;
+      this.showMessage(`Theme: ${theme.name} ${theme.icon}`);
+    } else if (theme.unlockType === 'achievement') {
+      if (this.achievementService.isThemeUnlocked(themeId)) {
+        this.purchasedThemes.push(themeId);
+        this.currentTheme = themeId;
+        this.showThemeMenu = false;
+        this.showMessage(`Theme freigeschaltet: ${theme.name} ${theme.icon}`);
+      } else {
+        this.showMessage(`🔒 Theme gesperrt! Achievement erforderlich.`);
+      }
+    } else if (theme.unlockType === 'points') {
+      const cost = theme.cost || 0;
+      if (this.points >= cost) {
+        this.points -= cost;
+        this.purchasedThemes.push(themeId);
+        this.currentTheme = themeId;
+        this.showThemeMenu = false;
+        this.showMessage(`Theme gekauft: ${theme.name} ${theme.icon} (-${cost} Punkte)`);
+      } else {
+        this.showMessage(`❌ Nicht genug Punkte! Benötigt: ${cost}, Vorhanden: ${this.points}`);
+      }
+    }
   }
 
   toggleThemeMenu(): void {
@@ -1225,8 +1292,24 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     return this.achievementService.getAchievements();
   }
 
-  isThemeUnlocked(theme: string): boolean {
-    return this.achievementService.isThemeUnlocked(theme);
+  isThemeUnlocked(themeId: string): boolean {
+    // Check if already purchased
+    if (this.purchasedThemes.includes(themeId)) return true;
+    
+    const theme = this.availableThemes.find(t => t.id === themeId);
+    if (!theme) return false;
+    
+    if (theme.unlockType === 'free') return true;
+    if (theme.unlockType === 'achievement') {
+      return this.achievementService.isThemeUnlocked(themeId);
+    }
+    // Points themes show as locked until purchased
+    return false;
+  }
+
+  getThemeCost(themeId: string): number {
+    const theme = this.availableThemes.find(t => t.id === themeId);
+    return theme?.cost || 0;
   }
 
   private showAchievementNotifications(achievements: Achievement[]): void {
@@ -1254,7 +1337,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   cleanAquarium(): void {
-    console.log('🧽 Aquarium wird gereinigt!');
+    // console.log('🧽 Aquarium wird gereinigt!');
 
     // delegate to particleService
     const canvas = this.canvasRef.nativeElement;
@@ -1343,7 +1426,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
          }
        }
      } catch (e) {
-       console.warn('Brush clean failed', e);
+       // console.warn('Brush clean failed', e);
      }
   }
 
@@ -1413,7 +1496,7 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
       };
       await this.supabaseService.saveAquariumState(this.currentUserId, state);
     } catch (e) {
-      console.warn('silent save failed', e);
+      // console.warn('silent save failed', e);
     }
   }
 }

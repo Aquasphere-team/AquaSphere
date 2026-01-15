@@ -54,45 +54,31 @@
             <!-- Theme selection menu -->
             <div class="theme-menu" *ngIf="showThemeMenu">
               <div class="theme-menu-header">
-                <h4>Theme wählen</h4>
+                <h4>🎨 Themes</h4>
                 <button class="close-btn" (click)="toggleThemeMenu()">✕</button>
               </div>
               <div class="theme-options">
-                <button class="theme-option" 
-                        [class.active]="currentTheme === 'classic'" 
-                        [class.locked]="!isThemeUnlocked('classic')"
-                        (click)="selectTheme('classic')">
-                  <div class="theme-preview classic"></div>
-                  <span>Klassisch</span>
-                  <span class="lock-icon" *ngIf="!isThemeUnlocked('classic')">🔒</span>
-                </button>
-                <button class="theme-option" 
-                        [class.active]="currentTheme === 'tropical'" 
-                        [class.locked]="!isThemeUnlocked('tropical')"
-                        (click)="selectTheme('tropical')">
-                  <div class="theme-preview tropical"></div>
-                  <span>Tropical</span>
-                  <span class="lock-icon" *ngIf="!isThemeUnlocked('tropical')">🔒</span>
-                </button>
-                <button class="theme-option" 
-                        [class.active]="currentTheme === 'deep'" 
-                        [class.locked]="!isThemeUnlocked('deep')"
-                        (click)="selectTheme('deep')">
-                  <div class="theme-preview deep"></div>
-                  <span>Tiefsee</span>
-                  <span class="lock-icon" *ngIf="!isThemeUnlocked('deep')">🔒</span>
-                </button>
-                <button class="theme-option" 
-                        [class.active]="currentTheme === 'sunset'" 
-                        [class.locked]="!isThemeUnlocked('sunset')"
-                        (click)="selectTheme('sunset')">
-                  <div class="theme-preview sunset"></div>
-                  <span>Sunset</span>
-                  <span class="lock-icon" *ngIf="!isThemeUnlocked('sunset')">🔒</span>
-                </button>
+                @for (theme of availableThemes; track theme.id) {
+                  <button class="theme-option" 
+                          [class.active]="currentTheme === theme.id" 
+                          [class.locked]="!isThemeUnlocked(theme.id)"
+                          (click)="selectTheme(theme.id)">
+                    <div class="theme-preview" [class]="theme.id"></div>
+                    <span class="theme-name">{{ theme.icon }} {{ theme.name }}</span>
+                    @if (!purchasedThemes.includes(theme.id)) {
+                      @if (theme.unlockType === 'points') {
+                        <span class="price-tag">🪙 {{ theme.cost }}</span>
+                      } @else if (theme.unlockType === 'achievement') {
+                        <span class="lock-icon">🏆</span>
+                      }
+                    } @else {
+                      <span class="owned-icon">✓</span>
+                    }
+                  </button>
+                }
               </div>
               <div class="theme-hint">
-                <small>🏆 Schalte Themes durch Achievements frei!</small>
+                <small>🏆 Achievement-Themes | 🪙 Punkte-Themes</small>
               </div>
             </div>
 

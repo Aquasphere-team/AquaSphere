@@ -188,7 +188,7 @@ export class AchievementService {
         achievement.unlockedAt = Date.now();
         unlocked.push(achievement);
         this.newlyUnlockedAchievements.push(achievement);
-        console.log(`🏆 Achievement unlocked: ${achievement.name}`);
+        // console.log(`🏆 Achievement unlocked: ${achievement.name}`);
       }
     });
 
