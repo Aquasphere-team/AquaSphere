@@ -7,6 +7,92 @@ export class CanvasService {
   private canvas?: HTMLCanvasElement;
   private ctx?: CanvasRenderingContext2D;
   private hungerBarDebugLogged = false;
+  private currentTheme = 'classic';
+
+  // Theme color palettes
+  private readonly themeColors: Record<string, {
+    waterStops: number[][];
+    causticColor: string;
+    lightTint: number[];
+    ambientOverlay?: string;
+  }> = {
+    classic: {
+      waterStops: [
+        [135,206,235,0.2], [100,170,210,0.33], [70,130,180,0.42],
+        [40,90,150,0.55], [18,40,110,0.7], [6,20,60,0.82], [0,6,30,0.9]
+      ],
+      causticColor: 'rgba(255, 255, 255, 0.8)',
+      lightTint: [255, 255, 255]
+    },
+    tropical: {
+      waterStops: [
+        [64,224,208,0.25], [32,178,170,0.35], [0,139,139,0.45],
+        [0,128,128,0.55], [0,100,100,0.68], [0,70,70,0.8], [0,50,50,0.9]
+      ],
+      causticColor: 'rgba(255, 255, 200, 0.85)',
+      lightTint: [255, 248, 220]
+    },
+    deep: {
+      waterStops: [
+        [25,25,112,0.3], [0,0,80,0.45], [0,0,60,0.55],
+        [0,0,45,0.65], [0,0,30,0.78], [0,0,20,0.88], [0,0,10,0.95]
+      ],
+      causticColor: 'rgba(100, 149, 237, 0.6)',
+      lightTint: [70, 130, 180]
+    },
+    sunset: {
+      waterStops: [
+        [255,140,100,0.2], [255,100,80,0.32], [200,80,80,0.42],
+        [150,60,80,0.55], [100,40,70,0.7], [60,20,50,0.82], [30,10,30,0.92]
+      ],
+      causticColor: 'rgba(255, 200, 150, 0.75)',
+      lightTint: [255, 180, 100]
+    },
+    neon: {
+      waterStops: [
+        [60,0,80,0.25], [80,0,120,0.35], [100,0,150,0.45],
+        [80,0,130,0.58], [60,0,100,0.72], [40,0,70,0.85], [20,0,40,0.95]
+      ],
+      causticColor: 'rgba(255, 0, 255, 0.7)',
+      lightTint: [200, 100, 255],
+      ambientOverlay: 'rgba(0, 255, 255, 0.05)'
+    },
+    arctic: {
+      waterStops: [
+        [200,230,255,0.2], [180,220,250,0.3], [160,210,245,0.4],
+        [140,200,240,0.52], [120,180,230,0.65], [100,160,220,0.78], [80,140,200,0.9]
+      ],
+      causticColor: 'rgba(220, 240, 255, 0.9)',
+      lightTint: [220, 240, 255]
+    },
+    lava: {
+      waterStops: [
+        [80,20,0,0.3], [100,30,0,0.4], [120,40,5,0.5],
+        [100,30,0,0.6], [80,20,0,0.72], [50,10,0,0.85], [30,5,0,0.95]
+      ],
+      causticColor: 'rgba(255, 100, 0, 0.7)',
+      lightTint: [255, 120, 50],
+      ambientOverlay: 'rgba(255, 50, 0, 0.08)'
+    },
+    midnight: {
+      waterStops: [
+        [20,10,40,0.35], [15,8,35,0.45], [10,5,30,0.55],
+        [8,4,25,0.68], [5,2,18,0.8], [3,1,12,0.9], [0,0,5,0.98]
+      ],
+      causticColor: 'rgba(100, 100, 180, 0.4)',
+      lightTint: [80, 80, 150]
+    }
+  };
+
+  setTheme(theme: string): void {
+    if (this.themeColors[theme]) {
+      this.currentTheme = theme;
+    }
+  }
+
+  getTheme(): string {
+    return this.currentTheme;
+  }
 
   initCanvas(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
@@ -69,39 +155,59 @@ export class CanvasService {
     if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx; const canvas = this.canvas;
 
-    // clamp
-    const v = Math.max(0, Math.min(1, dirtRatio));
+    try {
+      // clamp
+      const v = Math.max(0, Math.min(1, dirtRatio));
 
-    // S-curve easing so low dirt shows little change and higher dirt ramps more smoothly
-    const ease = (x: number) => (1 / (1 + Math.exp(-12 * (x - 0.5))));
-    const t = ease(v);
+      // S-curve easing so low dirt shows little change and higher dirt ramps more smoothly
+      const ease = (x: number) => (1 / (1 + Math.exp(-12 * (x - 0.5))));
+      const t = ease(v);
 
-    // helper to linearly interpolate between two rgba arrays
-    const lerpRGBA = (a: number[], b: number[], f: number) => a.map((av, i) => {
-      const bv = b[i] ?? 0; const out = av * (1 - f) + bv * f; return i < 3 ? Math.round(out) : +(out.toFixed(2));
-    });
+      // helper to linearly interpolate between two rgba arrays
+      const lerpRGBA = (a: number[], b: number[], f: number) => a.map((av, i) => {
+        const bv = b[i] ?? 0; const out = av * (1 - f) + bv * f; return i < 3 ? Math.round(out) : +(out.toFixed(2));
+      });
 
-    // Base gradient stops (clean water)
-    const baseStops: number[][] = [
-      [135,206,235,0.2], [100,170,210,0.33], [70,130,180,0.42], [40,90,150,0.55], [18,40,110,0.7], [6,20,60,0.82], [0,6,30,0.9]
-    ];
+      // Get theme-based water stops (with fallback)
+      const themeData = this.themeColors[this.currentTheme] || this.themeColors['classic'];
+      const baseStops = themeData?.waterStops || this.themeColors['classic'].waterStops;
 
-    // Dirty variants (greener/darker)
-    const dirtyStops: number[][] = [
-      [140,210,150,0.22], [110,185,150,0.34], [80,150,130,0.45], [50,110,95,0.58], [30,70,60,0.72], [20,45,38,0.85], [12,28,18,0.95]
-    ];
+      // Dirty variants - shift towards murky green/brown based on original colors
+      const dirtyStops: number[][] = baseStops.map(stop => [
+        Math.min(255, stop[0] * 0.7 + 40),  // shift red slightly
+        Math.min(255, stop[1] * 0.8 + 50),  // boost green for murky effect
+        Math.min(255, stop[2] * 0.5 + 20),  // reduce blue
+        Math.min(1, stop[3] + 0.05)         // slightly more opaque
+      ]);
 
-    const mixedStops = baseStops.map((bs, i) => lerpRGBA(bs, dirtyStops[i], t));
+      const mixedStops = baseStops.map((bs, i) => lerpRGBA(bs, dirtyStops[i], t));
 
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    const stopsCount = mixedStops.length;
-    mixedStops.forEach((s, idx) => {
-      const pos = idx / (stopsCount - 1);
-      gradient.addColorStop(pos, `rgba(${s[0]}, ${s[1]}, ${s[2]}, ${s[3]})`);
-    });
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      const stopsCount = mixedStops.length;
+      mixedStops.forEach((s, idx) => {
+        const pos = idx / (stopsCount - 1);
+        gradient.addColorStop(pos, `rgba(${s[0]}, ${s[1]}, ${s[2]}, ${s[3]})`);
+      });
 
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Apply theme-specific ambient overlay
+      if (themeData?.ambientOverlay) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.fillStyle = themeData.ambientOverlay;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }
+    } catch (e) {
+      // Fallback: simple blue gradient
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, 'rgba(135,206,235,0.2)');
+      gradient.addColorStop(1, 'rgba(0,6,30,0.9)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
   }
 
   drawCausticEffect(waveOffset: number): void {
@@ -109,7 +215,30 @@ export class CanvasService {
     const ctx = this.ctx; const canvas = this.canvas;
     const time = Date.now() * 0.001 + waveOffset * 0.02;
 
-    ctx.globalAlpha = 0.2;
+    // Default caustic color values
+    let r = 255, g = 255, b = 255;
+    let baseAlpha = 0.2;
+
+    try {
+      const themeData = this.themeColors[this.currentTheme] || this.themeColors['classic'];
+      const causticColor = themeData?.causticColor || 'rgba(255, 255, 255, 0.8)';
+
+      // Extract RGB values from caustic color string
+      const rgbMatch = causticColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (rgbMatch) {
+        r = parseInt(rgbMatch[1]) || 255;
+        g = parseInt(rgbMatch[2]) || 255;
+        b = parseInt(rgbMatch[3]) || 255;
+      }
+
+      // Adjust intensity based on theme (darker themes get subtler caustics)
+      const isDarkTheme = ['deep', 'midnight', 'lava'].includes(this.currentTheme);
+      baseAlpha = isDarkTheme ? 0.12 : 0.2;
+    } catch (e) {
+      // Use defaults
+    }
+
+    ctx.globalAlpha = baseAlpha;
 
     for (let i = 0; i < 12; i++) {
       const phase = i * 0.5;
@@ -119,9 +248,9 @@ export class CanvasService {
       const size = 60 + Math.sin(time * 2 + phase) * 30;
 
       const causticGradient = ctx.createRadialGradient(x, y, 0, x, y, size);
-      causticGradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-      causticGradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.4)');
-      causticGradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.1)');
+      causticGradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.8)`);
+      causticGradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, 0.4)`);
+      causticGradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, 0.1)`);
       causticGradient.addColorStop(1, 'transparent');
 
       ctx.beginPath();
@@ -743,7 +872,6 @@ export class CanvasService {
 
           // Debug log (only log once per fish per frame to avoid spam)
           if (!this.hungerBarDebugLogged) {
-            console.log(`🎨 Hunger Bar: ${f.name || f.type} - Hunger: ${f.hunger.toFixed(1)}, Satiety: ${satiety.toFixed(1)}, FillWidth: ${fillW.toFixed(1)}/${barWidth}`);
             this.hungerBarDebugLogged = true;
             setTimeout(() => this.hungerBarDebugLogged = false, 2000); // Reset after 2s
           }
@@ -767,10 +895,13 @@ export class CanvasService {
     if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx; const canvas = this.canvas;
 
+    const themeData = this.themeColors[this.currentTheme] || this.themeColors['classic'];
+    const themeLightTint = themeData?.lightTint || [255, 255, 255];
+
     // map colorTemp (Kelvin) to RGB tint (approximate)
     const kelvinToRgb = (kelvin = 6500) => {
       const temp = kelvin / 100;
-      let r = 0, g = 0, b = 0;
+      let r: number, g: number, b: number;
       if (temp <= 66) {
         r = 255;
         g = Math.min(255, Math.max(0, 99.4708025861 * Math.log(temp) - 161.1195681661));
@@ -784,11 +915,22 @@ export class CanvasService {
     };
 
     const dirtFactor = Math.max(0, Math.min(1, (dirtLevel ?? 0) / 100));
-    // reduce intensity further by dirt - clamp
-    const finalIntensity = Math.max(0, Math.min(3, lightIntensity * (1 - dirtFactor * 0.7)));
 
-    // compute tint color
-    const tintRgb = kelvinToRgb(colorTemp ?? 6500);
+    // Adjust base intensity for dark themes
+    const isDarkTheme = ['deep', 'midnight', 'lava'].includes(this.currentTheme);
+    const themeIntensityMod = isDarkTheme ? 0.5 : 1.0;
+
+    // reduce intensity further by dirt - clamp
+    const finalIntensity = Math.max(0, Math.min(3, lightIntensity * themeIntensityMod * (1 - dirtFactor * 0.7)));
+
+    // compute tint color - blend Kelvin color with theme tint
+    const kelvinRgb = kelvinToRgb(colorTemp ?? 6500);
+    // Blend theme tint with kelvin (theme has 40% influence)
+    const tintRgb = [
+      Math.round(kelvinRgb[0] * 0.6 + themeLightTint[0] * 0.4),
+      Math.round(kelvinRgb[1] * 0.6 + themeLightTint[1] * 0.4),
+      Math.round(kelvinRgb[2] * 0.6 + themeLightTint[2] * 0.4)
+    ];
     const tint = `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${0.08 * finalIntensity})`;
 
     // main light gradient (soft top-down)

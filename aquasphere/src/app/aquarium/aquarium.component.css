@@ -1413,3 +1413,229 @@ canvas {
   }
 }
 
+/* ===== Light Control Menu ===== */
+.light-menu-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  pointer-events: auto;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.light-menu-card {
+  width: 90%;
+  max-width: 320px;
+  background: linear-gradient(180deg, rgba(15, 35, 50, 0.98), rgba(10, 25, 40, 0.98));
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.light-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.light-menu-header h3 {
+  margin: 0;
+  color: #ffd700;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.light-menu-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.light-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.light-option-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.light-option-icon {
+  font-size: 1.5rem;
+}
+
+.light-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.light-option-text strong {
+  color: #fff;
+  font-size: 0.95rem;
+}
+
+.light-option-text small {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+}
+
+.toggle-btn {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.toggle-btn.active {
+  background: linear-gradient(145deg, #00d4aa, #00b894);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 212, 170, 0.4);
+}
+
+.light-color-picker {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.light-color-picker label {
+  display: block;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+}
+
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.color-wheel-input {
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  background: none;
+  padding: 0;
+}
+
+.color-wheel-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-wheel-input::-webkit-color-swatch {
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+}
+
+.color-preview {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+}
+
+.color-hex {
+  color: rgba(255, 255, 255, 0.6);
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+.color-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.color-preset {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.color-preset:hover {
+  transform: scale(1.15);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.color-preset:active {
+  transform: scale(0.95);
+}
+
+.light-menu-footer {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: center;
+}
+
+.light-menu-footer .control-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 0.95rem;
+}
+
+/* Mobile adjustments for light menu */
+@media (max-width: 768px) {
+  .light-menu-overlay {
+    position: fixed !important;
+    z-index: 1000 !important;
+  }
+
+  .light-menu-card {
+    width: 90% !important;
+    max-width: 320px !important;
+  }
+}
+
