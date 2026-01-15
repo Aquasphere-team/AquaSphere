@@ -79,6 +79,56 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly MAX_TIME_SPEED = 16;
   private lastTimeUpdate = 0;
 
+  // Light cycle configuration (Variant B)
+  readonly DAY_LENGTH_MS = 300_000; // default: 5 minutes per day cycle for gameplay (tuneable)
+  readonly DAWN_FRAC = 0.08; // fraction of day spent in dawn
+  readonly DUSK_FRAC = 0.08; // fraction of day spent in dusk
+  readonly DAY_MAX_INTENSITY = 1.0;
+  readonly NIGHT_MIN_INTENSITY = 0.22;
+  // Kelvin temps for tinting: dawn/dusk warmer, day neutral-cool, night cool-deep
+  readonly KELVIN_DAY = 6500;
+  readonly KELVIN_DAWN = 4200;
+  readonly KELVIN_NIGHT = 2600;
+
+  // compute light state (intensity 0..1, colorTemp in Kelvin, sunAngle radians, causticStrength 0..1)
+  private computeLightState(elapsedMs: number) {
+    const cfgDay = Math.max(30_000, this.DAY_LENGTH_MS); // clamp to avoid extreme flicker
+    const p = ((elapsedMs % cfgDay) / cfgDay); // 0..1 progress through day
+    const dawnEnd = this.DAWN_FRAC;
+    const dayEnd = 1 - this.DUSK_FRAC;
+
+    const smooth = (t: number) => t * t * (3 - 2 * t); // smoothstep
+
+    let intensity = this.NIGHT_MIN_INTENSITY;
+    let colorTemp = this.KELVIN_DAY;
+
+    if (p < dawnEnd) {
+      const t = Math.max(0, Math.min(1, p / dawnEnd));
+      const s = smooth(t);
+      intensity = this.NIGHT_MIN_INTENSITY * (1 - s) + this.DAY_MAX_INTENSITY * s;
+      colorTemp = Math.round(this.KELVIN_NIGHT * (1 - s) + this.KELVIN_DAWN * s);
+    } else if (p < dayEnd) {
+      const t = (p - dawnEnd) / (dayEnd - dawnEnd);
+      const s = smooth(t);
+      intensity = this.DAY_MAX_INTENSITY;
+      colorTemp = Math.round(this.KELVIN_DAWN * (1 - 0.3 * (1 - s)) + this.KELVIN_DAY * (0.3 * (1 - s)));
+    } else {
+      const t = Math.max(0, Math.min(1, (p - dayEnd) / (1 - dayEnd)));
+      const s = smooth(t);
+      intensity = this.DAY_MAX_INTENSITY * (1 - s) + this.NIGHT_MIN_INTENSITY * s;
+      colorTemp = Math.round(this.KELVIN_DAWN * (1 - s) + this.KELVIN_NIGHT * s);
+    }
+
+    // sun angle: rotate full circle across day (0 at top sunrise offset)
+    const sunAngle = (p * Math.PI * 2) - Math.PI / 2; // -pi/2..3pi/2
+
+    // caustic strength derived from intensity, slightly biased so dawn/dusk softer
+    const causticBase = Math.max(0, (intensity - this.NIGHT_MIN_INTENSITY) / (this.DAY_MAX_INTENSITY - this.NIGHT_MIN_INTENSITY));
+    const causticStrength = Math.pow(causticBase, 1.15);
+
+    return { intensity, colorTemp, sunAngle, causticStrength, isNight: intensity <= (this.NIGHT_MIN_INTENSITY + 0.01) };
+  }
+
   // Dirt / feeding tuning constants (new)
   readonly DIRT_PASSIVE_TICK_SEC = 60; // seconds between passive dirt ticks (used when starting DirtService)
   readonly DIRT_PER_FISH_INFLUENCE = 0.02; // dirt amount per fish for influence calls (smaller -> slower dirt increase)
@@ -220,6 +270,12 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   // sponge cursor position (pixels)
   spongeX = 0;
   spongeY = 0;
+
+  // Light control state
+  lightMenuVisible = false;
+  aquariumLampOn = false; // Artificial lamp for night time
+  accentLightEnabled = false; // LED accent lighting
+  accentLightColor = '#4169E1'; // Default: royal blue
 
   // dirt subscription (for future use)
   private dirtSubscription: any = null;
@@ -881,17 +937,25 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     // clear via service context
     this.canvasService.getContext()?.clearRect(0, 0, canvas.width, canvas.height);
 
+    // compute light state for this frame (day/night cycle)
+    const lightState = this.computeLightState(this.currentAquariumTime);
+    // update legacy lightIntensity for other uses
+    this.lightIntensity = lightState.intensity;
+
     // Animationen zeichnen (delegated to CanvasService)
     this.canvasService.drawWaterBackground(this.dirtLevel / 100);
-    this.canvasService.drawCausticEffect(this.waveOffset);
-    this.canvasService.drawWaterParticles(this.particleService.getParticles());
+    // pass caustic strength, sun angle, and night state for enhanced caustics
+    this.canvasService.drawCausticEffect(this.waveOffset, lightState.causticStrength, lightState.sunAngle, lightState.isNight);
     // draw non-plant decorations (stones, corals)
     this.canvasService.drawDecorations(this.decorations, this.decorationService.decorationTypes, this.waveOffset);
     // draw user-placed plants
     this.canvasService.drawPlants(this.plants, this.decorationService.plantTypes, this.waveOffset);
-    // update and draw fish
+    // update fish logic (uses particles to find feed)
     this.updateFish();
-    this.canvasService.drawFish(this.fish, this.dirtLevel / 100);
+    // draw particles (feed + cleaning feedback) so they're visible before/under fish
+    try { this.canvasService.drawWaterParticles(this.particleService.getParticles()); } catch (e) { /* ignore */ }
+    // draw fish on top with dynamic lighting
+    this.canvasService.drawFish(this.fish, this.dirtLevel / 100, lightState);
 
     // draw dirt effects (turbidity overlay) and visible stains on glass
     try {
@@ -909,7 +973,17 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // draw surface waves and light via service
     this.canvasService.drawSurfaceWaves(this.waveOffset);
-    this.canvasService.drawLightEffect(this.lightIntensity);
+    // pass lighting parameters including lamp and accent LED settings
+    this.canvasService.drawLightEffect(
+      lightState.intensity,
+      lightState.colorTemp,
+      lightState.sunAngle,
+      this.dirtLevel,
+      lightState.isNight,
+      this.aquariumLampOn,
+      this.accentLightEnabled,
+      this.accentLightColor
+    );
 
     this.waveOffset += 0.03;
     this.animationId = requestAnimationFrame(() => this.animate());
@@ -1062,7 +1136,17 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
     console.log('🐟 Fische werden gefüttert!');
 
     // delegate to particleService
-    this.particleService.addFeedBurst(10, 50, 750);
+    try {
+      const canvas = this.canvasRef.nativeElement;
+      const minX = Math.max(0, Math.floor(canvas.width * 0.08));
+      const maxX = Math.max(minX + 10, Math.floor(canvas.width * 0.92));
+      // spawn feed at a reachable depth below surface so fish can swim to it (e.g. 8% of canvas height)
+      const startY = Math.max(8, Math.floor(canvas.height * 0.08));
+      this.particleService.addFeedBurst(10, minX, maxX, startY);
+    } catch (e) {
+      // fallback to defaults if canvas not ready
+      this.particleService.addFeedBurst(10, 50, 750);
+    }
     this.points -= this.FEED_COST;
 
     // spawn some stains where feed will land (randomized across the width, just under surface)
@@ -1094,8 +1178,49 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   toggleLight(): void {
-    console.log('💡 Licht umgeschaltet!');
-    this.lightIntensity = this.lightIntensity > 0.5 ? 0.2 : 1.5;
+    // Open the light control menu instead of direct toggle
+    this.toggleLightMenu();
+  }
+
+  toggleLightMenu(): void {
+    this.lightMenuVisible = !this.lightMenuVisible;
+    if (this.lightMenuVisible) {
+      // Close other menus
+      this.inScreenMenu = false;
+      this.decorationPaletteVisible = false;
+      this.fishPaletteVisible = false;
+    }
+  }
+
+  closeLightMenu(): void {
+    this.lightMenuVisible = false;
+  }
+
+  toggleAquariumLamp(): void {
+    this.aquariumLampOn = !this.aquariumLampOn;
+    if (this.aquariumLampOn) {
+      this.showMessage('Aquariumlampe eingeschaltet');
+    } else {
+      this.showMessage('Aquariumlampe ausgeschaltet');
+    }
+  }
+
+  toggleAccentLight(): void {
+    this.accentLightEnabled = !this.accentLightEnabled;
+    if (this.accentLightEnabled) {
+      this.showMessage('LED-Beleuchtung eingeschaltet');
+    } else {
+      this.showMessage('LED-Beleuchtung ausgeschaltet');
+    }
+  }
+
+  setAccentColor(color: string): void {
+    this.accentLightColor = color;
+  }
+
+  onAccentColorChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.accentLightColor = input.value;
   }
 
   cleanAquarium(): void {

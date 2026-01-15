@@ -104,30 +104,93 @@ export class CanvasService {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  drawCausticEffect(waveOffset: number): void {
+  drawCausticEffect(waveOffset: number, causticStrength: number = 1, sunAngle?: number, isNight?: boolean): void {
     if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx; const canvas = this.canvas;
     const time = Date.now() * 0.001 + waveOffset * 0.02;
 
-    ctx.globalAlpha = 0.2;
+    // At night, use softer blue-tinted caustics
+    const nightMode = isNight === true;
+    const baseAlpha = nightMode
+      ? 0.08 * Math.max(0, Math.min(1, causticStrength))
+      : 0.18 * Math.max(0, Math.min(1, causticStrength));
+
+    // Sun influence on caustic positioning (caustics shift toward sun side)
+    const sunInfluence = typeof sunAngle === 'number' ? Math.cos(sunAngle) : 0;
+    const sunVerticalInfluence = typeof sunAngle === 'number' ? Math.sin(sunAngle) : 0;
+
+    ctx.globalAlpha = baseAlpha;
 
     for (let i = 0; i < 12; i++) {
       const phase = i * 0.5;
-      const x = (Math.sin(time * 0.8 + phase) * 0.4 + 0.5) * canvas.width;
-      const y = (Math.cos(time * 1.1 + phase) * 0.35 + 0.45) * canvas.height;
 
-      const size = 60 + Math.sin(time * 2 + phase) * 30;
+      // Base position with sun influence - caustics drift toward light source
+      const baseX = Math.sin(time * 0.8 + phase) * 0.4 + 0.5;
+      const baseY = Math.cos(time * 1.1 + phase) * 0.35 + 0.45;
+
+      // Apply sun influence to shift caustics toward sun side
+      const x = (baseX + sunInfluence * 0.12) * canvas.width;
+      const y = (baseY + sunVerticalInfluence * 0.05) * canvas.height;
+
+      // Depth-based size: larger caustics at bottom (deeper water disperses light more)
+      const depthFactor = 0.7 + (y / canvas.height) * 0.6; // 0.7 at top, 1.3 at bottom
+      const baseSize = (60 + Math.sin(time * 2 + phase) * 30) * (0.6 + 0.8 * Math.max(0, causticStrength));
+      const size = baseSize * depthFactor;
+
+      // Intensity based on proximity to sun side (brighter on sun-facing side)
+      const horizontalPos = x / canvas.width;
+      const sunSideBrightness = typeof sunAngle === 'number'
+        ? 0.7 + 0.3 * (sunInfluence > 0 ? horizontalPos : (1 - horizontalPos))
+        : 1;
+
+      // Color: slight cyan tint near surface, warmer at bottom; blue tint at night
+      const surfaceProximity = 1 - (y / canvas.height);
+      let r: number, g: number, b: number;
+      if (nightMode) {
+        // Moonlight caustics: blue-silver tint
+        r = 180 + Math.floor(surfaceProximity * 40);
+        g = 200 + Math.floor(surfaceProximity * 30);
+        b = 255;
+      } else {
+        // Daylight caustics: slight cyan near surface, warmer below
+        r = 255 - Math.floor(surfaceProximity * 25);
+        g = 255 - Math.floor(surfaceProximity * 8);
+        b = 255;
+      }
+
+      const effectiveStrength = causticStrength * sunSideBrightness;
 
       const causticGradient = ctx.createRadialGradient(x, y, 0, x, y, size);
-      causticGradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
-      causticGradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.4)');
-      causticGradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.1)');
+      causticGradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${0.9 * effectiveStrength})`);
+      causticGradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, ${0.45 * effectiveStrength})`);
+      causticGradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, ${0.12 * effectiveStrength})`);
       causticGradient.addColorStop(1, 'transparent');
 
       ctx.beginPath();
       ctx.arc(x, y, size, 0, Math.PI * 2);
       ctx.fillStyle = causticGradient;
       ctx.fill();
+    }
+
+    // Add shimmer effect at water surface (wave-synchronized)
+    if (!nightMode && causticStrength > 0.3) {
+      const shimmerCount = 8;
+      for (let i = 0; i < shimmerCount; i++) {
+        const shimmerX = (i / shimmerCount + Math.sin(time * 1.5 + i) * 0.05) * canvas.width;
+        const shimmerY = 30 + Math.sin(time * 2 + i * 0.8) * 15;
+        const shimmerSize = 20 + Math.sin(time * 3 + i) * 10;
+
+        ctx.globalAlpha = 0.15 * causticStrength;
+        const shimmerGrad = ctx.createRadialGradient(shimmerX, shimmerY, 0, shimmerX, shimmerY, shimmerSize);
+        shimmerGrad.addColorStop(0, `rgba(255, 255, 255, ${0.8 * causticStrength})`);
+        shimmerGrad.addColorStop(0.5, `rgba(255, 255, 255, ${0.3 * causticStrength})`);
+        shimmerGrad.addColorStop(1, 'transparent');
+
+        ctx.beginPath();
+        ctx.arc(shimmerX, shimmerY, shimmerSize, 0, Math.PI * 2);
+        ctx.fillStyle = shimmerGrad;
+        ctx.fill();
+      }
     }
 
     ctx.globalAlpha = 1;
@@ -590,12 +653,40 @@ export class CanvasService {
     });
   }
 
-  drawFish(fish: FishInstance[], dirtRatio = 0): void {
-    if (!this.ctx) return;
+  drawFish(fish: FishInstance[], dirtRatio = 0, lightState?: { intensity: number; colorTemp: number; sunAngle: number; isNight: boolean }): void {
+    if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx;
+    const canvas = this.canvas;
 
     // clamp dirtRatio to 0..1
     const dr = Math.max(0, Math.min(1, dirtRatio));
+
+    // Light state defaults
+    const intensity = lightState?.intensity ?? 1;
+    const colorTemp = lightState?.colorTemp ?? 6500;
+    const sunAngle = lightState?.sunAngle ?? 0;
+    const isNight = lightState?.isNight ?? false;
+
+    // Calculate sun position for lighting effects
+    const sunProgress = (sunAngle + Math.PI / 2) / (Math.PI * 2);
+    const normalizedProgress = Math.min(1, Math.max(0, sunProgress * 2));
+    const sunX = canvas.width * (0.1 + normalizedProgress * 0.8);
+    const sunY = -canvas.height * 0.1;
+
+    // Kelvin to RGB for tinting fish
+    const kelvinToTint = (kelvin: number) => {
+      const temp = kelvin / 100;
+      let r = 255, g = 255, b = 255;
+      if (temp <= 66) {
+        g = Math.min(255, Math.max(0, 99.4708025861 * Math.log(temp) - 161.1195681661));
+        b = temp <= 19 ? 0 : Math.min(255, Math.max(0, 138.5177312231 * Math.log(temp - 10) - 305.0447927307));
+      } else {
+        r = Math.min(255, Math.max(0, 329.698727446 * Math.pow(temp - 60, -0.1332047592)));
+        g = Math.min(255, Math.max(0, 288.1221695283 * Math.pow(temp - 60, -0.0755148492)));
+      }
+      return { r: r / 255, g: g / 255, b: b / 255 };
+    };
+    const lightTint = kelvinToTint(colorTemp);
 
     fish.forEach(f => {
       ctx.save();
@@ -617,13 +708,47 @@ export class CanvasService {
       // visibility factor derived from dirt: at dr=0 -> 1, at dr=1 -> limited visibility (min ~0.12)
       const visibility = Math.max(0.12, 1 - dr * 0.85);
 
+      // Depth-based brightness: fish are darker at the bottom of the tank
+      const depthFactor = 1 - (f.y / canvas.height) * 0.25 * (1 - intensity * 0.3);
+
+      // Light direction influence: fish facing the sun are brighter
+      const angleToSun = Math.atan2(sunY - f.y, sunX - f.x);
+      const facingLight = Math.cos(angleToSun - f.direction);
+      const lightFacing = isNight ? 0.9 : (0.85 + facingLight * 0.15);
+
+      // Combined brightness factor
+      const brightnessFactor = depthFactor * lightFacing * intensity;
+
       // Darken fish color a bit more with dirt
       const darkenFactor = 0.3 + dr * 0.35;
 
+      // Apply color temperature tint to fish color
+      const applyLightTint = (color: string, tintStrength: number = 0.15) => {
+        if (!color.startsWith('#')) return color;
+        const hex = color.slice(1);
+        let r = parseInt(hex.slice(0, 2), 16);
+        let g = parseInt(hex.slice(2, 4), 16);
+        let b = parseInt(hex.slice(4, 6), 16);
+
+        // Apply light temperature tint
+        r = Math.round(r * (1 - tintStrength) + r * lightTint.r * tintStrength);
+        g = Math.round(g * (1 - tintStrength) + g * lightTint.g * tintStrength);
+        b = Math.round(b * (1 - tintStrength) + b * lightTint.b * tintStrength);
+
+        // Apply brightness
+        r = Math.min(255, Math.round(r * brightnessFactor));
+        g = Math.min(255, Math.round(g * brightnessFactor));
+        b = Math.min(255, Math.round(b * brightnessFactor));
+
+        return `rgb(${r}, ${g}, ${b})`;
+      };
+
+      const tintedColor = applyLightTint(f.color);
+
       const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, f.size);
-      gradient.addColorStop(0, f.color);
-      gradient.addColorStop(0.7, f.color);
-      gradient.addColorStop(1, this.darkenColor(f.color, darkenFactor));
+      gradient.addColorStop(0, tintedColor);
+      gradient.addColorStop(0.7, tintedColor);
+      gradient.addColorStop(1, this.darkenColor(tintedColor, darkenFactor));
 
       ctx.beginPath();
       ctx.fillStyle = gradient;
@@ -631,8 +756,38 @@ export class CanvasService {
       ctx.ellipse(0, 0, f.size * 0.8, f.size * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
 
+      // Specular highlight on fish body (light reflection)
+      if (!f.isDead && !isNight && intensity > 0.3) {
+        const highlightX = f.size * 0.15;
+        const highlightY = -f.size * 0.2;
+        const highlightSize = f.size * 0.25;
+        const highlightAlpha = 0.25 * intensity * visibility * (0.5 + facingLight * 0.5);
+
+        const highlightGrad = ctx.createRadialGradient(highlightX, highlightY, 0, highlightX, highlightY, highlightSize);
+        highlightGrad.addColorStop(0, `rgba(255, 255, 255, ${highlightAlpha})`);
+        highlightGrad.addColorStop(0.5, `rgba(255, 255, 255, ${highlightAlpha * 0.4})`);
+        highlightGrad.addColorStop(1, 'transparent');
+
+        ctx.beginPath();
+        ctx.fillStyle = highlightGrad;
+        ctx.globalAlpha = 1;
+        ctx.ellipse(highlightX, highlightY, highlightSize, highlightSize * 0.6, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Rim lighting effect during dawn/dusk (warm edge glow)
+      const isDawnDusk = intensity > 0.3 && intensity < 0.9 && !isNight;
+      if (!f.isDead && isDawnDusk) {
+        const rimAlpha = 0.15 * (1 - Math.abs(intensity - 0.6) * 2) * visibility;
+        ctx.strokeStyle = `rgba(255, 200, 150, ${rimAlpha})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, f.size * 0.82, f.size * 0.52, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
       ctx.beginPath();
-      ctx.fillStyle = f.color;
+      ctx.fillStyle = tintedColor;
       ctx.globalAlpha = 0.7 * visibility;
       ctx.moveTo(-f.size * 0.8, 0);
       ctx.lineTo(-f.size * 1.3, -f.size * 0.3);
@@ -654,12 +809,12 @@ export class CanvasService {
       ctx.fill();
 
       ctx.globalAlpha = 0.6 * visibility;
-      ctx.fillStyle = f.color;
+      ctx.fillStyle = tintedColor;
 
       // Special rendering for catfish (cleaner fish)
       if (f.type === 'catfish') {
         // Draw barbels (whiskers)
-        ctx.strokeStyle = this.darkenColor(f.color, 0.4);
+        ctx.strokeStyle = this.darkenColor(tintedColor, 0.4);
         ctx.lineWidth = 2;
         ctx.globalAlpha = 0.8 * visibility;
         // Upper barbels
@@ -674,13 +829,13 @@ export class CanvasService {
         ctx.stroke();
         // Flatter body shape
         ctx.globalAlpha = 0.5 * visibility;
-        ctx.fillStyle = this.darkenColor(f.color, 0.2 + dr * 0.15);
+        ctx.fillStyle = this.darkenColor(tintedColor, 0.2 + dr * 0.15);
         ctx.beginPath();
         ctx.ellipse(0, f.size * 0.1, f.size * 0.7, f.size * 0.4, 0, 0, Math.PI * 2);
         ctx.fill();
         // Spots pattern
         ctx.globalAlpha = 0.3 * visibility;
-        ctx.fillStyle = this.darkenColor(f.color, 0.4 + dr * 0.2);
+        ctx.fillStyle = this.darkenColor(tintedColor, 0.4 + dr * 0.2);
         for (let i = 0; i < 4; i++) {
           ctx.beginPath();
           ctx.arc(-f.size * 0.3 + i * f.size * 0.3, (i % 2 ? -0.2 : 0.2) * f.size, f.size * 0.1, 0, Math.PI * 2);
@@ -762,10 +917,20 @@ export class CanvasService {
     });
   }
 
-  // drawLightEffect: draws top-down light overlay. Supports optional colorTemp (Kelvin), sunAngle (radians), and dirtLevel (0..100)
-  drawLightEffect(lightIntensity: number, colorTemp?: number, sunAngle?: number, dirtLevel?: number): void {
+  // drawLightEffect: draws top-down light overlay. Supports optional colorTemp (Kelvin), sunAngle (radians), dirtLevel (0..100), and artificial lighting
+  drawLightEffect(
+    lightIntensity: number,
+    colorTemp?: number,
+    sunAngle?: number,
+    dirtLevel?: number,
+    isNight?: boolean,
+    lampOn?: boolean,
+    accentEnabled?: boolean,
+    accentColor?: string
+  ): void {
     if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx; const canvas = this.canvas;
+    const time = Date.now() * 0.001;
 
     // map colorTemp (Kelvin) to RGB tint (approximate)
     const kelvinToRgb = (kelvin = 6500) => {
@@ -791,37 +956,219 @@ export class CanvasService {
     const tintRgb = kelvinToRgb(colorTemp ?? 6500);
     const tint = `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${0.08 * finalIntensity})`;
 
+    ctx.save();
+
+    // Depth-based ambient lighting: darker at bottom
+    const depthGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    depthGradient.addColorStop(0, 'rgba(0,0,0,0)');
+    depthGradient.addColorStop(0.6, 'rgba(0,0,0,0.02)');
+    depthGradient.addColorStop(1, `rgba(0,0,0,${0.15 * (1 - finalIntensity * 0.5)})`);
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = depthGradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
     // main light gradient (soft top-down)
+    ctx.globalCompositeOperation = 'lighter';
     const lg = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.6);
     lg.addColorStop(0, `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${0.18 * finalIntensity})`);
     lg.addColorStop(0.35, `rgba(${Math.round(tintRgb[0]*0.9)}, ${Math.round(tintRgb[1]*0.9)}, ${Math.round(tintRgb[2]*0.9)}, ${0.08 * finalIntensity})`);
     lg.addColorStop(1, 'rgba(0,0,0,0)');
-
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = lg;
     ctx.fillRect(0, 0, canvas.width, canvas.height * 0.6);
 
-    // subtle god-rays: draw 3 soft radial cones biased by sunAngle
-    if (typeof sunAngle === 'number') {
-      const cx = canvas.width / 2 + Math.cos(sunAngle) * canvas.width * 0.15;
-      const cy = Math.max(20, Math.sin(sunAngle) * canvas.height * -0.05 + 20);
-      for (let i = 0; i < 3; i++) {
-        const spread = 0.16 + i * 0.06;
-        const alpha = 0.06 * finalIntensity * (1 - dirtFactor * 0.6) * (1 - i * 0.25);
-        const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, canvas.height * (0.6 + i * 0.2));
-        rg.addColorStop(0, `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${alpha})`);
-        rg.addColorStop(spread, `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${alpha * 0.55})`);
-        rg.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = rg;
-        ctx.fillRect(0, 0, canvas.width, canvas.height * 0.7);
+    // Enhanced god-rays with proper sun tracking
+    if (typeof sunAngle === 'number' && !isNight) {
+      // Calculate sun position that arcs across the canvas
+      // sunAngle goes from -π/2 (dawn, left) through π/2 (noon, top) to 3π/2 (dusk, right)
+      const sunProgress = (sunAngle + Math.PI / 2) / (Math.PI * 2); // 0 at dawn, 0.25 at noon, 0.5 at dusk
+      const normalizedProgress = Math.min(1, Math.max(0, sunProgress * 2)); // 0-1 during daylight
+
+      // Sun X position: arcs from left (10%) to right (90%) of canvas
+      const sunX = canvas.width * (0.1 + normalizedProgress * 0.8);
+      // Sun Y position: arcs up at noon (highest point)
+      const sunY = -canvas.height * 0.15 + Math.sin(normalizedProgress * Math.PI) * canvas.height * 0.1;
+
+      // Draw 6 god-rays with animation
+      const rayCount = 6;
+      for (let i = 0; i < rayCount; i++) {
+        // Animated sway for each ray
+        const sway = Math.sin(time * 0.5 + i * 0.8) * 15;
+        const pulse = 0.85 + Math.sin(time * 0.3 + i * 0.5) * 0.15;
+
+        // Ray spread angle from sun position
+        const rayAngle = ((i - rayCount / 2) / rayCount) * 0.8 + Math.sin(time * 0.2 + i) * 0.05;
+        const rayEndX = sunX + Math.sin(rayAngle) * canvas.width * 0.4 + sway;
+        const rayEndY = canvas.height * 0.9;
+
+        // Ray length and intensity decrease with each layer
+        const rayLength = canvas.height * (0.7 + i * 0.08);
+        const baseAlpha = 0.045 * finalIntensity * (1 - dirtFactor * 0.6) * pulse;
+        const layerFade = 1 - (i / rayCount) * 0.4;
+
+        // Create ray gradient from sun to depth
+        const rayGrad = ctx.createLinearGradient(sunX, sunY, rayEndX, rayEndY);
+        rayGrad.addColorStop(0, `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${baseAlpha * layerFade})`);
+        rayGrad.addColorStop(0.3, `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${baseAlpha * layerFade * 0.6})`);
+        rayGrad.addColorStop(0.7, `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${baseAlpha * layerFade * 0.2})`);
+        rayGrad.addColorStop(1, 'rgba(0,0,0,0)');
+
+        // Draw ray as a tapered shape
+        ctx.beginPath();
+        const rayWidth = 30 + i * 15;
+        ctx.moveTo(sunX - rayWidth * 0.3, sunY);
+        ctx.lineTo(rayEndX - rayWidth, rayEndY);
+        ctx.lineTo(rayEndX + rayWidth, rayEndY);
+        ctx.lineTo(sunX + rayWidth * 0.3, sunY);
+        ctx.closePath();
+        ctx.fillStyle = rayGrad;
+        ctx.fill();
       }
+
+      // Central bright spot at sun position
+      const sunGlow = ctx.createRadialGradient(sunX, Math.max(0, sunY + 30), 0, sunX, Math.max(0, sunY + 30), canvas.width * 0.25);
+      sunGlow.addColorStop(0, `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${0.12 * finalIntensity})`);
+      sunGlow.addColorStop(0.4, `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${0.04 * finalIntensity})`);
+      sunGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = sunGlow;
+      ctx.fillRect(0, 0, canvas.width, canvas.height * 0.5);
     }
 
-    // slight top rim highlight using tint for stronger day feeling
+    // Night mode: moonlight effect
+    if (isNight === true) {
+      // Soft blue moonlight from upper area
+      const moonX = canvas.width * 0.7;
+      const moonY = canvas.height * 0.05;
+
+      // Moon glow
+      const moonGlow = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, canvas.width * 0.4);
+      moonGlow.addColorStop(0, `rgba(180, 200, 255, ${0.08 * finalIntensity})`);
+      moonGlow.addColorStop(0.3, `rgba(150, 180, 230, ${0.04 * finalIntensity})`);
+      moonGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = moonGlow;
+      ctx.fillRect(0, 0, canvas.width, canvas.height * 0.6);
+
+      // Subtle moon reflection shimmer on surface
+      const shimmerCount = 5;
+      for (let i = 0; i < shimmerCount; i++) {
+        const shimmerX = moonX + (i - shimmerCount / 2) * 25 + Math.sin(time * 1.2 + i) * 10;
+        const shimmerY = 15 + Math.sin(time * 0.8 + i * 0.5) * 5;
+        const shimmerSize = 8 + Math.sin(time * 2 + i) * 4;
+
+        ctx.globalAlpha = 0.12 * finalIntensity;
+        ctx.beginPath();
+        ctx.arc(shimmerX, shimmerY, shimmerSize, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(200, 220, 255, 0.6)';
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // Top rim highlight with enhanced effect
     ctx.globalCompositeOperation = 'screen';
-    ctx.fillStyle = tint;
-    ctx.fillRect(0, 0, canvas.width, Math.max(4, canvas.height * 0.06));
+    const rimGradient = ctx.createLinearGradient(0, 0, 0, Math.max(8, canvas.height * 0.08));
+    rimGradient.addColorStop(0, `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${0.15 * finalIntensity})`);
+    rimGradient.addColorStop(0.5, `rgba(${tintRgb[0]}, ${tintRgb[1]}, ${tintRgb[2]}, ${0.06 * finalIntensity})`);
+    rimGradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rimGradient;
+    ctx.fillRect(0, 0, canvas.width, Math.max(8, canvas.height * 0.08));
+
+    // Aquarium Lamp Effect (artificial overhead light, most effective at night)
+    if (lampOn === true) {
+      ctx.globalCompositeOperation = 'lighter';
+
+      // Lamp effectiveness: stronger at night, subtle during day
+      const lampEffectiveness = isNight ? 1.0 : 0.3;
+
+      // Main lamp light cone from top center
+      const lampX = canvas.width * 0.5;
+      const lampY = -canvas.height * 0.05;
+
+      // Warm white lamp color (around 3500K - warm LED)
+      const lampR = 255, lampG = 244, lampB = 229;
+
+      // Primary light cone
+      const lampCone = ctx.createRadialGradient(lampX, lampY, 0, lampX, canvas.height * 0.4, canvas.height * 0.8);
+      lampCone.addColorStop(0, `rgba(${lampR}, ${lampG}, ${lampB}, ${0.35 * lampEffectiveness})`);
+      lampCone.addColorStop(0.3, `rgba(${lampR}, ${lampG}, ${lampB}, ${0.2 * lampEffectiveness})`);
+      lampCone.addColorStop(0.6, `rgba(${lampR}, ${lampG}, ${lampB}, ${0.08 * lampEffectiveness})`);
+      lampCone.addColorStop(1, 'rgba(0,0,0,0)');
+
+      ctx.fillStyle = lampCone;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Secondary soft fill light
+      const fillLight = ctx.createLinearGradient(0, 0, 0, canvas.height * 0.7);
+      fillLight.addColorStop(0, `rgba(${lampR}, ${lampG}, ${lampB}, ${0.15 * lampEffectiveness})`);
+      fillLight.addColorStop(0.5, `rgba(${lampR}, ${lampG}, ${lampB}, ${0.05 * lampEffectiveness})`);
+      fillLight.addColorStop(1, 'rgba(0,0,0,0)');
+
+      ctx.fillStyle = fillLight;
+      ctx.fillRect(0, 0, canvas.width, canvas.height * 0.7);
+
+      // Lamp highlight reflection on water surface
+      ctx.globalAlpha = 0.25 * lampEffectiveness;
+      const surfaceHighlight = ctx.createLinearGradient(0, 0, 0, 25);
+      surfaceHighlight.addColorStop(0, `rgba(${lampR}, ${lampG}, ${lampB}, 0.6)`);
+      surfaceHighlight.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = surfaceHighlight;
+      ctx.fillRect(canvas.width * 0.2, 0, canvas.width * 0.6, 25);
+      ctx.globalAlpha = 1;
+    }
+
+    // Accent LED Lighting Effect
+    if (accentEnabled === true && accentColor) {
+      ctx.globalCompositeOperation = 'lighter';
+
+      // Parse hex color to RGB
+      const hexToRgb = (hex: string) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+          r: parseInt(result[1], 16),
+          g: parseInt(result[2], 16),
+          b: parseInt(result[3], 16)
+        } : { r: 65, g: 105, b: 225 }; // default royal blue
+      };
+
+      const ledColor = hexToRgb(accentColor);
+      const ledIntensity = 0.7; // LED brightness factor
+
+      // Animated LED glow - subtle pulsing
+      const pulse = 0.85 + Math.sin(time * 2) * 0.15;
+
+      // Bottom LED strip effect (like aquarium LED strips)
+      const bottomGlow = ctx.createLinearGradient(0, canvas.height, 0, canvas.height * 0.5);
+      bottomGlow.addColorStop(0, `rgba(${ledColor.r}, ${ledColor.g}, ${ledColor.b}, ${0.25 * ledIntensity * pulse})`);
+      bottomGlow.addColorStop(0.3, `rgba(${ledColor.r}, ${ledColor.g}, ${ledColor.b}, ${0.12 * ledIntensity * pulse})`);
+      bottomGlow.addColorStop(0.7, `rgba(${ledColor.r}, ${ledColor.g}, ${ledColor.b}, ${0.04 * ledIntensity * pulse})`);
+      bottomGlow.addColorStop(1, 'rgba(0,0,0,0)');
+
+      ctx.fillStyle = bottomGlow;
+      ctx.fillRect(0, canvas.height * 0.5, canvas.width, canvas.height * 0.5);
+
+      // Side accent lights (left and right edges)
+      const sideIntensity = 0.15 * ledIntensity * pulse;
+
+      // Left side glow
+      const leftGlow = ctx.createLinearGradient(0, 0, canvas.width * 0.25, 0);
+      leftGlow.addColorStop(0, `rgba(${ledColor.r}, ${ledColor.g}, ${ledColor.b}, ${sideIntensity})`);
+      leftGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = leftGlow;
+      ctx.fillRect(0, 0, canvas.width * 0.25, canvas.height);
+
+      // Right side glow
+      const rightGlow = ctx.createLinearGradient(canvas.width, 0, canvas.width * 0.75, 0);
+      rightGlow.addColorStop(0, `rgba(${ledColor.r}, ${ledColor.g}, ${ledColor.b}, ${sideIntensity})`);
+      rightGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = rightGlow;
+      ctx.fillRect(canvas.width * 0.75, 0, canvas.width * 0.25, canvas.height);
+
+      // Subtle color wash over entire tank
+      ctx.globalAlpha = 0.06 * pulse;
+      ctx.fillStyle = `rgba(${ledColor.r}, ${ledColor.g}, ${ledColor.b}, 0.5)`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.globalAlpha = 1;
+    }
+
     ctx.restore();
   }
 }

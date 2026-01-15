@@ -141,6 +141,84 @@
                 </div>
               </div>
             </ng-container>
+            <!-- Light control menu -->
+            <ng-container *ngIf="lightMenuVisible">
+              <div class="light-menu-overlay" (click)="closeLightMenu()">
+                <div class="light-menu-card" (click)="$event.stopPropagation()">
+                  <div class="light-menu-header">
+                    <h3>💡 Beleuchtung</h3>
+                    <button class="close-phone-auth" (click)="closeLightMenu()">✕</button>
+                  </div>
+
+                  <div class="light-menu-body">
+                    <!-- Aquarium Lamp Toggle -->
+                    <div class="light-option">
+                      <div class="light-option-info">
+                        <span class="light-option-icon">🔦</span>
+                        <div class="light-option-text">
+                          <strong>Aquariumlampe</strong>
+                          <small>Erhellt das Aquarium bei Nacht</small>
+                        </div>
+                      </div>
+                      <button
+                        class="toggle-btn"
+                        [class.active]="aquariumLampOn"
+                        (click)="toggleAquariumLamp()">
+                        {{ aquariumLampOn ? 'AN' : 'AUS' }}
+                      </button>
+                    </div>
+
+                    <!-- LED Accent Light Toggle -->
+                    <div class="light-option">
+                      <div class="light-option-info">
+                        <span class="light-option-icon">✨</span>
+                        <div class="light-option-text">
+                          <strong>LED-Akzentlicht</strong>
+                          <small>Farbige Stimmungsbeleuchtung</small>
+                        </div>
+                      </div>
+                      <button
+                        class="toggle-btn"
+                        [class.active]="accentLightEnabled"
+                        (click)="toggleAccentLight()">
+                        {{ accentLightEnabled ? 'AN' : 'AUS' }}
+                      </button>
+                    </div>
+
+                    <!-- Color Picker (only visible when LED is enabled) -->
+                    <div class="light-color-picker" *ngIf="accentLightEnabled">
+                      <label>LED-Farbe wählen:</label>
+                      <div class="color-picker-row">
+                        <input
+                          type="color"
+                          [value]="accentLightColor"
+                          (input)="onAccentColorChange($event)"
+                          class="color-wheel-input"
+                        />
+                        <div class="color-preview" [style.background]="accentLightColor"></div>
+                        <span class="color-hex">{{ accentLightColor }}</span>
+                      </div>
+                      <!-- Quick color presets -->
+                      <div class="color-presets">
+                        <button class="color-preset" style="background: #4169E1" (click)="setAccentColor('#4169E1')" title="Königsblau"></button>
+                        <button class="color-preset" style="background: #00CED1" (click)="setAccentColor('#00CED1')" title="Türkis"></button>
+                        <button class="color-preset" style="background: #9370DB" (click)="setAccentColor('#9370DB')" title="Lila"></button>
+                        <button class="color-preset" style="background: #FF6B6B" (click)="setAccentColor('#FF6B6B')" title="Koralle"></button>
+                        <button class="color-preset" style="background: #32CD32" (click)="setAccentColor('#32CD32')" title="Grün"></button>
+                        <button class="color-preset" style="background: #FFD700" (click)="setAccentColor('#FFD700')" title="Gold"></button>
+                        <button class="color-preset" style="background: #FF69B4" (click)="setAccentColor('#FF69B4')" title="Pink"></button>
+                        <button class="color-preset" style="background: #FFFFFF" (click)="setAccentColor('#FFFFFF')" title="Weiß"></button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="light-menu-footer">
+                    <button class="control-btn" (click)="closeLightMenu()">Schließen</button>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+
             <!-- remove mode overlay -->
             <div class="remove-mode-overlay" *ngIf="removeMode">
               <div class="remove-mode-indicator">🗑️ Löschmodus aktiv - Tippe auf Objekte zum Entfernen</div>

@@ -23,24 +23,29 @@ export class ParticleService {
     }
   }
 
-  addFeedBurst(count = 10, minX = 50, maxX = 750): void {
+  addFeedBurst(count = 10, minX = 50, maxX = 750, startY?: number): void {
+    // startY: optional pixel coordinate where feed spawns; default just under the top so fish can reach it
+    const spawnY = (typeof startY === 'number') ? startY : 4;
     for (let i = 0; i < count; i++) {
       setTimeout(() => {
         const x = Math.random() * (maxX - minX) + minX;
         const p: Particle = {
           x,
-          y: -20,
+          y: spawnY,
           size: Math.random() * 4 + 2,
           speedX: (Math.random() - 0.5) * 2,
-          speedY: Math.random() * 3 + 2,
+          // stronger downward speed so feed moves away from the absolute surface and is reachable
+          speedY: Math.random() * 2.0 + 1.5, // ~1.5..3.5 px/frame
           opacity: 0.9,
-          color: 'rgba(255,165,0,0.8)',
+          color: 'rgba(255,165,0,0.95)',
           isFeed: true
         };
+        // Debug log spawn coords when running in development (console only)
+        try { if ((window as any).DEBUG_FEED_SPAWN) console.log('Feed spawn', { x: Math.round(x), y: Math.round(spawnY), size: Math.round(p.size), speedY: +(p.speedY.toFixed(2)) }); } catch (e) {}
         this.particles.push(p);
         // set optional flag after creation to avoid TS excess property checks
         (p as any).settled = false;
-      }, i * 150);
+      }, i * 120);
     }
   }
 
