@@ -4,7 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build --configuration production --output-path=dist/aquasphere --base-href /",
+    "build": "node scripts/set-env.js && ng build --configuration production --output-path=dist/aquasphere --base-href /",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
