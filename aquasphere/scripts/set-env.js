@@ -5,8 +5,8 @@ const envFile = path.join(__dirname, '../src/environments/environments.prod.ts')
 
 const content = `export const environment = {
   production: true,
-  supabaseUrl: '${process.env.SUPABASE_URL || ''}',
-  supabaseKey: '${process.env.SUPABASE_KEY || ''}'
+  supabaseUrl: '${process.env.supabaseUrl || ''}',
+  supabaseKey: '${process.env.supabaseKey || ''}'
 };
 `;
 
