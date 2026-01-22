@@ -890,8 +890,15 @@ export class CanvasService {
     });
   }
 
-  // drawLightEffect: draws top-down light overlay. Supports optional colorTemp (Kelvin), sunAngle (radians), and dirtLevel (0..100)
-  drawLightEffect(lightIntensity: number, colorTemp?: number, sunAngle?: number, dirtLevel?: number): void {
+  // drawLightEffect: draws top-down light overlay. Supports optional colorTemp (Kelvin), sunAngle (radians), dirtLevel (0..100), and accent light settings
+  drawLightEffect(
+    lightIntensity: number,
+    colorTemp?: number,
+    sunAngle?: number,
+    dirtLevel?: number,
+    accentLightEnabled?: boolean,
+    accentLightColor?: string
+  ): void {
     if (!this.ctx || !this.canvas) return;
     const ctx = this.ctx; const canvas = this.canvas;
 
@@ -964,6 +971,63 @@ export class CanvasService {
     ctx.globalCompositeOperation = 'screen';
     ctx.fillStyle = tint;
     ctx.fillRect(0, 0, canvas.width, Math.max(4, canvas.height * 0.06));
+
+    // Accent light (LED strip) rendering
+    if (accentLightEnabled && accentLightColor) {
+      // Helper to convert hex color to RGB
+      const hexToRgb = (hex: string): [number, number, number] => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        if (result) {
+          return [
+            parseInt(result[1], 16),
+            parseInt(result[2], 16),
+            parseInt(result[3], 16)
+          ];
+        }
+        return [65, 105, 225]; // Default royal blue
+      };
+
+      const [ar, ag, ab] = hexToRgb(accentLightColor);
+      // Scale accent light alpha with main light intensity so it dims when lights are low
+      const accentAlpha = Math.min(0.6, 0.4 * finalIntensity);
+
+      ctx.globalCompositeOperation = 'screen';
+
+      // Bottom glow: radial gradient from below canvas, simulating LED strip at bottom
+      const bottomGlow = ctx.createRadialGradient(
+        canvas.width / 2, canvas.height + canvas.height * 0.3, 0,
+        canvas.width / 2, canvas.height + canvas.height * 0.3, canvas.height * 0.8
+      );
+      bottomGlow.addColorStop(0, `rgba(${ar}, ${ag}, ${ab}, ${accentAlpha})`);
+      bottomGlow.addColorStop(0.4, `rgba(${ar}, ${ag}, ${ab}, ${accentAlpha * 0.5})`);
+      bottomGlow.addColorStop(0.7, `rgba(${ar}, ${ag}, ${ab}, ${accentAlpha * 0.2})`);
+      bottomGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = bottomGlow;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Left side glow
+      const leftGlow = ctx.createRadialGradient(
+        -canvas.width * 0.1, canvas.height * 0.6, 0,
+        -canvas.width * 0.1, canvas.height * 0.6, canvas.width * 0.5
+      );
+      leftGlow.addColorStop(0, `rgba(${ar}, ${ag}, ${ab}, ${accentAlpha * 0.5})`);
+      leftGlow.addColorStop(0.5, `rgba(${ar}, ${ag}, ${ab}, ${accentAlpha * 0.2})`);
+      leftGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = leftGlow;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Right side glow
+      const rightGlow = ctx.createRadialGradient(
+        canvas.width * 1.1, canvas.height * 0.6, 0,
+        canvas.width * 1.1, canvas.height * 0.6, canvas.width * 0.5
+      );
+      rightGlow.addColorStop(0, `rgba(${ar}, ${ag}, ${ab}, ${accentAlpha * 0.5})`);
+      rightGlow.addColorStop(0.5, `rgba(${ar}, ${ag}, ${ab}, ${accentAlpha * 0.2})`);
+      rightGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = rightGlow;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
     ctx.restore();
   }
 }

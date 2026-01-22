@@ -811,7 +811,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         // persist dirt state as part of the aquarium JSON
         dirtLevel: this.dirtLevel,
         dirtLastUpdated: this.dirtLastUpdated,
-        dirtStains: this.dirtStains
+        dirtStains: this.dirtStains,
+        // persist accent light state
+        accentLightEnabled: this.accentLightEnabled,
+        accentLightColor: this.accentLightColor
       };
       await this.supabaseService.saveAquariumState(this.currentUserId, state);
       alert('Dein Aquarium wurde in der Cloud gespeichert! 🐠');
@@ -853,6 +856,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         if (state.dirtLevel !== undefined) this.dirtLevel = state.dirtLevel;
         if (state.dirtLastUpdated !== undefined) this.dirtLastUpdated = state.dirtLastUpdated;
         if (Array.isArray(state.dirtStains)) this.dirtStains = state.dirtStains;
+
+        // load accent light state if present
+        if (state.accentLightEnabled !== undefined) this.accentLightEnabled = state.accentLightEnabled;
+        if (state.accentLightColor !== undefined) this.accentLightColor = state.accentLightColor;
 
         // start dirt service with loaded state
         try {
@@ -922,7 +929,14 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // draw surface waves and light via service
     this.canvasService.drawSurfaceWaves(this.waveOffset);
-    this.canvasService.drawLightEffect(this.lightIntensity);
+    this.canvasService.drawLightEffect(
+      this.lightIntensity,
+      undefined,
+      undefined,
+      this.dirtLevel,
+      this.accentLightEnabled,
+      this.accentLightColor
+    );
 
     this.waveOffset += 0.03;
     this.animationId = requestAnimationFrame(() => this.animate());
@@ -1254,7 +1268,10 @@ export class AquariumComponent implements OnInit, AfterViewInit, OnDestroy {
         timeSpeed: this.timeSpeed,
         dirtLevel: this.dirtLevel,
         dirtLastUpdated: this.dirtLastUpdated,
-        dirtStains: this.dirtStains
+        dirtStains: this.dirtStains,
+        // persist accent light state
+        accentLightEnabled: this.accentLightEnabled,
+        accentLightColor: this.accentLightColor
       };
       await this.supabaseService.saveAquariumState(this.currentUserId, state);
     } catch (e) {
