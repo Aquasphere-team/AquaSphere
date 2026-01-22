@@ -1,0 +1,4 @@
+window.env = {
+  NG_APP_SUPABASE_URL: '___NG_APP_SUPABASE_URL___',
+  NG_APP_SUPABASE_KEY: '___NG_APP_SUPABASE_KEY___'
+};

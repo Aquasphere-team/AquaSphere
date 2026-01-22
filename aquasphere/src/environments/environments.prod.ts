@@ -1,5 +1,5 @@
 export const environment = {
   production: true,
-  supabaseUrl: '${NG_APP_SUPABASE_URL}',
-  supabaseKey: '${NG_APP_SUPABASE_KEY}'
+  supabaseUrl: (window as any)['env']?.['NG_APP_SUPABASE_URL'] || '',
+  supabaseKey: (window as any)['env']?.['NG_APP_SUPABASE_KEY'] || ''
 };
