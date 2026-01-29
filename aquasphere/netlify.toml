@@ -1,7 +1,7 @@
 [build]
 base = "aquasphere"
-command = "NG_APP_SUPABASE_URL=${NG_APP_SUPABASE_URL} NG_APP_SUPABASE_KEY=${NG_APP_SUPABASE_KEY} npm run build"
-publish = "dist/aquasphere/browser"
+command = "npm run build"
+publish = "dist/aquasphere"
 
 [[redirects]]
 from = "/*"
