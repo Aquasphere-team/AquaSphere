@@ -3,6 +3,9 @@ base = "aquasphere"
 command = "npm run build"
 publish = "dist/aquasphere"
 
+[build.environment]
+SECRETS_SCAN_OMIT_KEYS = "NG_APP_SUPABASE_KEY,NG_APP_SUPABASE_URL"
+
 [[plugins]]
 package = "./netlify/plugins/inject-env"
 
