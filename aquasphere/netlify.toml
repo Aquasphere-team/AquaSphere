@@ -3,6 +3,9 @@ base = "aquasphere"
 command = "npm run build"
 publish = "dist/aquasphere"
 
+[[plugins]]
+package = "./netlify/plugins/inject-env"
+
 [[redirects]]
 from = "/*"
 to = "/index.html"

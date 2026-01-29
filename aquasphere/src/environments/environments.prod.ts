@@ -1,5 +1,8 @@
+declare const NG_APP_SUPABASE_URL: string;
+declare const NG_APP_SUPABASE_KEY: string;
+
 export const environment = {
   production: true,
-  supabaseUrl: (window as any)['env']?.['NG_APP_SUPABASE_URL'] || '',
-  supabaseKey: (window as any)['env']?.['NG_APP_SUPABASE_KEY'] || ''
+  supabaseUrl: NG_APP_SUPABASE_URL,
+  supabaseKey: NG_APP_SUPABASE_KEY
 };
